@@ -1,4 +1,4 @@
-# 🚀 Ahmad Faraz — Autonomous Job Automation & Organic Outreach Engine (v1.0.0)
+# 🚀 Ahmad Faraz — Autonomous Job Automation & Organic Outreach Engine (v1.1.0)
 
 An intelligent, autonomous job hunting and direct outreach pipeline built with the **Google Antigravity SDK** (`google-antigravity`), powered by **live web search**, **HTTPX browser emulation**, and an active authenticated Google Antigravity CLI session (`agy` with Gemini 3.8 Flash) — **with ZERO Gemini API key required**.
 
@@ -70,8 +70,25 @@ Inspects any company career page or job listing URL via HTTPX:
 - Persists all sent applications into a native Excel workbook ([`data/applied_jobs_tracker.xlsx`](file:///F:/Antigravity-cli/job-automation-smtp/data/applied_jobs_tracker.xlsx)) with formatted green status badges and timestamps.
 - **Strict Anti-Duplicate Guard**: Checks recipient email and company name before sending — **permanently prevents accidental double-sending to the same recruiter or company**.
 
-### 5. Interactive Paste Wizard & Queue (`--paste`, `--apply-queue`)
-Paste custom job leads from personal sources (WhatsApp, email, Discord, ROZEE.pk) and send immediately or queue for batch outreach.
+### 5. Dynamic Skills Customizer
+Analyzes each job description and dynamically tailors Ahmad's middle pitch paragraph to emphasize the exact tech stack required:
+- **Backend / APIs**: Focuses on Python (FastAPI/Django), REST architecture, SQL/PostgreSQL.
+- **Frontend / Fullstack**: Emphasizes React, JavaScript, responsive UI, component state design.
+- **QA & Automation**: Focuses on Playwright, Selenium, test automation, and debugging.
+- **AI Agents**: Highlights autonomous workflow orchestration, LLMs, tool-calling pipelines.
+
+### 6. Inbound Reply & Interview Detector (`--check-replies`)
+Monitors your Gmail inbox via IMAP SSL, matches responses from applied companies, and categorizes incoming messages:
+- 🟢 **Interview Invites** *(e.g. Rolustech response detected)*
+- 🟡 **Technical Assessments / Coding Tests**
+- 💬 **Recruiter Inquiries**
+- 🔴 **Status Updates / Rejections**
+Automatically updates the Excel tracker status to `INTERVIEW INVITE` and triggers Discord alerts.
+
+### 7. Real-Time Discord Notifications (`--test-discord`)
+Dispatches instant rich embed notifications to your Discord channel whenever:
+- A new application is delivered with your CV.
+- A recruiter replies or schedules an interview.
 
 ---
 
@@ -93,6 +110,8 @@ cd F:\Antigravity-cli\job-automation-smtp
 | `python run.py --apply-url "<URL>" --to "hr@comp.com"` | Apply to a specific URL with an explicit recruiter email override |
 | `python run.py --paste` | Interactive wizard to paste job details and apply or queue |
 | `python run.py --apply-queue` | Dispatch application emails to all pending jobs in queue |
+| `python run.py --check-replies` | Scan Gmail inbox for recruiter responses, detect interviews, and update Excel & Discord |
+| `python run.py --test-discord` | Send a test notification to your configured Discord webhook |
 | `python run.py --tracker` | View application statistics and Excel tracker file details |
 | `python run.py --test-cv` | Send a preview application email with CV attached to your inbox |
 | `python run.py --test-smtp` | Test Gmail SMTP connection and credentials |
@@ -108,7 +127,7 @@ Current verified applications dispatched and recorded in [`data/applied_jobs_tra
 
 | ID | Timestamp | Company | Role Applied | Recruiter Email | Status |
 |:---:|:---:|---|---|---|:---:|
-| **APP-0001** | `2026-10-29 23:07` | **Rolustech** | Associate Software Engineer | `Careers@rolustech.com` | **APPLIED** |
+| **APP-0001** | `2026-10-29 23:07` | **Rolustech** | Associate Software Engineer | `Careers@rolustech.com` | **INTERVIEW INVITE 🟢** |
 | **APP-0002** | `2026-10-29 23:07` | **Contour Software** | Trainee Software Developer | `careers@contour-software.com` | **APPLIED** |
 | **APP-0003** | `2026-10-29 23:07` | **Clustox** | Software Engineering Intern | `hr@clustox.com` | **APPLIED** |
 | **APP-0004** | `2026-10-29 23:11` | **Prime System Solutions** | Trainee Engineer (Internship to Hire) | `info@primesystemsolutions.com` | **APPLIED** |
@@ -128,6 +147,25 @@ job-automation-smtp/
 ├── workflow.py                   # Antigravity SDK Agent orchestration
 ├── antigravity_cli_agent.py      # Zero-API-key bridge leveraging authenticated agy session
 ├── test_smtp.py                  # Standalone SMTP connection tester
+├── data/
+│   ├── Ahmad_Faraz_CV.pdf        # Ahmad Faraz's CV PDF attached to applications
+│   ├── applied_jobs_tracker.xlsx # Formatted Excel tracking workbook (Anti-duplicate source)
+│   ├── applied_jobs_tracker.csv  # Companion CSV file
+│   ├── pasted_jobs.json          # Queue for copy-pasted job opportunities
+│   └── jobs_database.json        # Persistent database for scored opportunities
+└── tools/
+    ├── __init__.py
+    ├── browser_tool.py           # HTTPX browser agent & contact email regex extractor
+    ├── discord_alert_tool.py     # Discord Webhook notifications for applications & replies
+    ├── email_tool.py             # SMTP dispatcher with anti-duplicate check & CV attachment
+    ├── excel_tracker_tool.py     # openpyxl Excel tracking and deduplication engine
+    ├── inbox_listener_tool.py    # Gmail IMAP listener & interview invite classifier
+    ├── job_scanner_tool.py       # LinkedIn public guest crawler & pasted queue manager
+    ├── pitch_customizer_tool.py  # Dynamic Skills Customizer tailored to job specs
+    ├── web_search_tool.py        # DDGS live web search & natural language prompt parser
+    ├── read_sent_emails.py       # Gmail IMAP utility used to inspect sent email patterns
+    └── tracker_tool.py           # State management & qualification tracker
+```
 ├── data/
 │   ├── Ahmad_Faraz_CV.pdf        # Ahmad Faraz's CV PDF attached to applications
 │   ├── applied_jobs_tracker.xlsx # Formatted Excel tracking workbook (Anti-duplicate source)

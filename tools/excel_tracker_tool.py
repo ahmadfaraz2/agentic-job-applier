@@ -212,6 +212,60 @@ def record_excel_application(
     logger.info(f"Recorded application to {company} ({recipient_email}) in Excel tracker.")
     return f"Recorded in Excel Tracker: {record_id} -> {company} ({recipient_email})"
 
+def update_excel_recruiter_status(
+    company_or_email: str,
+    status: str,
+    reply_snippet: str = ""
+) -> bool:
+    """Updates the status and notes of a company application when a reply/interview is detected."""
+    if not EXCEL_FILE.exists():
+        return False
+
+    clean_target = company_or_email.strip().lower()
+    updated = False
+
+    try:
+        wb = openpyxl.load_workbook(EXCEL_FILE)
+        ws = wb.active
+
+        # Style mapping
+        color_map = {
+            "INTERVIEW_INVITE": ("DCFCE7", "166534"), # Green
+            "ASSESSMENT": ("FEF3C7", "B45309"),       # Amber
+            "INQUIRY": ("E0F2FE", "0369A1"),          # Cyan
+            "REJECTION": ("F1F5F9", "64748B"),        # Slate
+        }
+        fill_hex, font_hex = color_map.get(status.upper(), ("DCFCE7", "166534"))
+        status_fill = PatternFill(start_color=fill_hex, end_color=fill_hex, fill_type="solid")
+        status_font = Font(name="Calibri", size=10, bold=True, color=font_hex)
+
+        for row_idx in range(2, ws.max_row + 1):
+            cell_comp = str(ws.cell(row=row_idx, column=3).value or "").strip().lower()
+            cell_email = str(ws.cell(row=row_idx, column=5).value or "").strip().lower()
+
+            if clean_target in cell_comp or clean_target in cell_email or cell_email in clean_target:
+                # Update status cell (column 7)
+                cell_s = ws.cell(row=row_idx, column=7)
+                cell_s.value = status.upper().replace("_", " ")
+                cell_s.fill = status_fill
+                cell_s.font = status_font
+
+                # Update notes cell (column 10)
+                if reply_snippet:
+                    cell_n = ws.cell(row=row_idx, column=10)
+                    now_str = datetime.now().strftime("%Y-%m-%d %H:%M")
+                    cell_n.value = f"[{now_str} Reply]: {reply_snippet[:150]}"
+
+                updated = True
+
+        if updated:
+            wb.save(EXCEL_FILE)
+            logger.info(f"Updated Excel tracker status for '{company_or_email}' -> {status}")
+    except Exception as e:
+        logger.error(f"Failed to update Excel status: {e}")
+
+    return updated
+
 def get_excel_stats() -> Dict[str, Any]:
     """Returns statistics from the Excel tracker."""
     if not EXCEL_FILE.exists():
@@ -223,13 +277,17 @@ def get_excel_stats() -> Dict[str, Any]:
         rows = list(ws.iter_rows(min_row=2, values_only=True))
         companies = set()
         applied_count = 0
+        interview_count = 0
         for r in rows:
-            if r and len(r) > 6:
-                if str(r[6] or "").upper() == "APPLIED":
-                    applied_count += 1
-                    companies.add(str(r[2] or "").strip())
+            if r and len(r) > 6 and r[0]:
+                status_str = str(r[6] or "").upper()
+                applied_count += 1
+                companies.add(str(r[2] or "").strip())
+                if "INTERVIEW" in status_str:
+                    interview_count += 1
         return {
             "total_applications": applied_count,
+            "interview_invites": interview_count,
             "unique_companies": len(companies),
             "companies": sorted(list(companies)),
             "excel_path": str(EXCEL_FILE)

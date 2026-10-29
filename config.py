@@ -47,7 +47,7 @@ def _get_float(key: str, default: float) -> float:
 class Config:
     """Project-wide settings container."""
 
-    VERSION: str = "1.0.0"
+    VERSION: str = "1.1.0"
 
     # Paths
     PROJECT_ROOT: Path = PROJECT_ROOT
@@ -68,6 +68,13 @@ class Config:
     SMTP_FROM_EMAIL: str = os.getenv("SMTP_FROM_EMAIL", os.getenv("SMTP_USER", "dev.ahmadfaraz24@gmail.com"))
     SMTP_FROM_NAME: str = os.getenv("SMTP_FROM_NAME", "Ahmad Faraz")
     ALERT_RECIPIENT_EMAIL: str = os.getenv("ALERT_RECIPIENT_EMAIL", "")
+
+    # IMAP Inbox Listener Settings
+    IMAP_HOST: str = os.getenv("IMAP_HOST", "imap.gmail.com")
+    IMAP_PORT: int = _get_int("IMAP_PORT", 993)
+
+    # Discord Notifications Webhook
+    DISCORD_WEBHOOK_URL: str = os.getenv("DISCORD_WEBHOOK_URL", "")
 
     # Job Preferences
     JOB_SEARCH_QUERY: str = os.getenv("JOB_SEARCH_QUERY", "Python AI Agent Developer")

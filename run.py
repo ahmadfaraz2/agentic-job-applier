@@ -37,6 +37,8 @@ from tools.job_scanner_tool import (
 )
 from tools.web_search_tool import execute_prompt_search, search_web_jobs
 from tools.excel_tracker_tool import get_excel_stats, EXCEL_FILE
+from tools.inbox_listener_tool import check_inbound_recruiter_replies
+from tools.discord_alert_tool import send_discord_notification
 from workflow import run_unified_workflow, start_periodic_daemon
 
 def print_banner():
@@ -343,6 +345,16 @@ def main():
         help="View applied jobs statistics and Excel tracker file details.",
     )
     group.add_argument(
+        "--check-replies",
+        action="store_true",
+        help="Check Gmail inbox for recruiter responses, classify interviews/tests, and update Excel & Discord.",
+    )
+    group.add_argument(
+        "--test-discord",
+        action="store_true",
+        help="Send a test notification to your configured Discord webhook.",
+    )
+    group.add_argument(
         "--reset-db",
         action="store_true",
         help="Clear the local jobs database to re-evaluate opportunities.",
@@ -459,13 +471,54 @@ def main():
         print("\n" + "=" * 60)
         print("  📊 Excel Application Tracker Summary")
         print("=" * 60)
-        print(f"• Total Applications Sent: {stats.get('total_applications', 0)}")
-        print(f"• Unique Companies:        {stats.get('unique_companies', 0)}")
+        print(f"• Total Applications Recorded: {stats.get('total_applications', 0)}")
+        print(f"• Interview Invites Detected:  {stats.get('interview_invites', 0)}")
+        print(f"• Unique Companies:            {stats.get('unique_companies', 0)}")
         print("• Applied Companies:")
         for c in stats.get("companies", []):
             print(f"   - {c}")
         print(f"\n• Excel File Path:\n  {stats.get('excel_path')}")
         print("=" * 60 + "\n")
+        return
+
+    if args.check_replies:
+        print("\n" + "=" * 60)
+        print("  📬 Inbound Recruiter Reply & Interview Detector")
+        print("=" * 60)
+        print("[IMAP] Scanning Gmail inbox for responses from applied companies...")
+        replies = check_inbound_recruiter_replies(limit=30, notify_discord=True)
+        if not replies:
+            print("[i] No new replies from applied companies detected yet.")
+        else:
+            print(f"\n[✓] Detected {len(replies)} recruiter response(s):\n" + "-" * 60)
+            for r in replies:
+                print(f"• Company:  {r['company']}")
+                print(f"  Category: {r['classification']}")
+                print(f"  Subject:  {r['subject']}")
+                print(f"  Snippet:  {r['snippet']}")
+                print("-" * 60)
+            print("[✓] Updated Excel tracker status and dispatched Discord alerts (if enabled).\n")
+        return
+
+    if args.test_discord:
+        print("\n[Discord Alert] Dispatching test notification to configured webhook...")
+        if not Config.DISCORD_WEBHOOK_URL:
+            print("[!] Error: DISCORD_WEBHOOK_URL is not set in your .env file.")
+            print("    Add: DISCORD_WEBHOOK_URL=https://discord.com/api/webhooks/your/webhook/url")
+            return
+        success = send_discord_notification(
+            title="🔔 Ahmad Faraz Outreach Bot — Test Alert",
+            description="Your Discord real-time notification integration is active and working properly!",
+            fields=[
+                {"name": "Status", "value": "🟢 Connected & Live", "inline": True},
+                {"name": "Engine", "value": "Google Antigravity SDK", "inline": True},
+            ],
+            color=0x22C55E
+        )
+        if success:
+            print("[✓] Success! Check your Discord channel for the notification.\n")
+        else:
+            print("[!] Failed to deliver Discord webhook. Please verify the URL.\n")
         return
 
     if args.daemon:

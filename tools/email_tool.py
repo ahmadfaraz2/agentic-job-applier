@@ -17,6 +17,8 @@ from typing import List, Optional
 
 from config import Config
 from tools.excel_tracker_tool import is_already_applied, record_excel_application
+from tools.pitch_customizer_tool import generate_tailored_pitch
+from tools.discord_alert_tool import notify_application_sent
 
 logger = logging.getLogger(__name__)
 
@@ -153,18 +155,20 @@ def send_cv_application_email(
     job_title: str,
     company: str,
     custom_paragraph: str = "",
+    job_description: str = "",
     source_platform: str = "Web",
     force: bool = False
 ) -> str:
     """Sends a professional job application email with Ahmad Faraz's CV attached,
     matching his exact phrasing, greetings, background, and signature from previous sent emails.
-    Automatically checks the Excel tracker to prevent duplicate outreach.
+    Automatically customizes skills pitch to job spec and checks Excel tracker against duplicates.
 
     Args:
         to_email: Recruiter or company contact email.
         job_title: The position title (e.g. 'Associate Software Engineer', 'Python AI Agent Developer').
         company: Company name (e.g. 'Rolustech', 'Lemon.io').
-        custom_paragraph: Optional custom focus tailored to this specific job.
+        custom_paragraph: Optional explicit pitch overriding the dynamic customizer.
+        job_description: Job description text used by Dynamic Skills Customizer to tailor pitch.
         source_platform: Where the job was found (e.g. 'LinkedIn', 'User Paste', 'Direct').
         force: If True, bypasses deduplication check.
 
@@ -183,14 +187,12 @@ def send_cv_application_email(
 
     subject = f"Application for {job_title} - Ahmad Faraz"
 
-    # Default pitch if custom_paragraph is not supplied
+    # Dynamic tailored pitch if custom_paragraph is not supplied
     if not custom_paragraph:
-        custom_paragraph = (
-            f"I saw the {job_title} opening at {company} and would like to apply. "
-            f"I'm a Software Engineering graduate with hands-on experience building Python (Django/FastAPI), "
-            f"JavaScript/React, and AI Agent applications, working with REST APIs, databases, Git, and "
-            f"browser automation (Selenium & Playwright). I enjoy debugging complex systems with care and "
-            f"am keen to contribute to your engineering team."
+        custom_paragraph = generate_tailored_pitch(
+            job_title=job_title,
+            company=company,
+            job_description=job_description
         )
 
     body_text = f"""Hello {company} team,
@@ -225,6 +227,13 @@ I'm based in Sargodha and open to discussing remote work or relocation if needed
             cv_attached="Ahmad_Faraz_CV.pdf",
             subject=subject,
             pitch_snippet=custom_paragraph[:200]
+        )
+        # Real-time Discord Notification
+        notify_application_sent(
+            company=company,
+            job_title=job_title,
+            to_email=to_email,
+            source=source_platform
         )
 
     return result
