@@ -1,0 +1,52 @@
+[
+  {
+    "id": "rolustech_ase",
+    "to_email": "Careers@rolustech.com",
+    "company": "Rolustech",
+    "job_title": "Associate Software Engineer",
+    "source": "LinkedIn / Direct",
+    "notes": "Lahore on-site, Python/Django & React focus",
+    "status": "APPLIED",
+    "updated_at": "2026-10-29T18:00:41.828930+00:00"
+  },
+  {
+    "id": "contour_trainee",
+    "to_email": "careers@contour-software.com",
+    "company": "Contour Software",
+    "job_title": "Trainee Software Developer",
+    "source": "LinkedIn / Direct",
+    "notes": "Lahore on-site, fresh graduate engineering track",
+    "status": "APPLIED",
+    "updated_at": "2026-10-29T18:02:36.682360+00:00"
+  },
+  {
+    "id": "clustox_intern",
+    "to_email": "hr@clustox.com",
+    "company": "Clustox",
+    "job_title": "Software Engineering Intern",
+    "source": "LinkedIn / Direct",
+    "notes": "Lahore on-site, software development internship",
+    "status": "APPLIED",
+    "updated_at": "2026-10-29T18:02:42.553600+00:00"
+  },
+  {
+    "id": "prime_trainee",
+    "to_email": "info@primesystemsolutions.com",
+    "company": "Prime System Solutions",
+    "job_title": "Trainee Engineer",
+    "source": "LinkedIn Post",
+    "notes": "702 Arfa Software Technology Park, Lahore. Internship to hire program",
+    "status": "APPLIED",
+    "updated_at": "2026-10-29T18:11:19.538592+00:00"
+  },
+  {
+    "id": "kryptomind_intern",
+    "to_email": "jobs@kryptomind.com",
+    "company": "KryptoMind LLC",
+    "job_title": "Software QA / Python Intern",
+    "source": "LinkedIn Post",
+    "notes": "Johar Town, Lahore. Python & automation testing track",
+    "status": "APPLIED",
+    "updated_at": "2026-10-29T18:11:25.322694+00:00"
+  }
+]

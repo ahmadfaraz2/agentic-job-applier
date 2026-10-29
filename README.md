@@ -1,0 +1,167 @@
+# 🚀 Ahmad Faraz — Autonomous Job Automation & Organic Outreach Engine (v1.0.0)
+
+An intelligent, autonomous job hunting and direct outreach pipeline built with the **Google Antigravity SDK** (`google-antigravity`), powered by **live web search**, **HTTPX browser emulation**, and an active authenticated Google Antigravity CLI session (`agy` with Gemini 3.8 Flash) — **with ZERO Gemini API key required**.
+
+All outgoing application emails represent **Ahmad Faraz**'s genuine sender identity, authentic tone, contact details, and attached CV ([`Ahmad_Faraz_CV.pdf`](file:///F:/Antigravity-cli/job-automation-smtp/data/Ahmad_Faraz_CV.pdf)), protected by an **Excel tracking and anti-duplicate engine**.
+
+---
+
+## 👤 Ahmad Faraz's Authentic Application Profile
+
+- **Sender Identity**: `Ahmad Faraz <dev.ahmadfaraz24@gmail.com>` *(Never automated bot names)*
+- **Contact Details**:
+  - **Phone**: `+92 307 5709318`
+  - **Location**: Sargodha, Pakistan (Open to Remote & Relocation)
+  - **LinkedIn**: [linkedin.com/in/ahmad-faraz-](https://www.linkedin.com/in/ahmad-faraz-/)
+  - **GitHub**: [github.com/ahmadfaraz2](https://github.com/ahmadfaraz2)
+- **CV Attachment**: [`data/Ahmad_Faraz_CV.pdf`](file:///F:/Antigravity-cli/job-automation-smtp/data/Ahmad_Faraz_CV.pdf) automatically attached to every application email.
+- **Application Format**: **100% Pure Organic Plain Text** (`text/plain`). No HTML newsletters, marketing cards, or robotic templates — matches Ahmad's genuine Gmail sent emails.
+
+---
+
+## 🏛️ System Architecture
+
+```mermaid
+flowchart TD
+    User["👤 User Ingestion<br/>(--prompt, --linkedin, --apply-url, --paste)"] --> Agent["🤖 Antigravity Autonomous Engine<br/>(Gemini 3.8 Flash via agy / SDK)"]
+
+    subgraph Discovery & Extraction Tools
+        Agent -->|1. Web Search & Prompts| ToolWeb["🔍 tools/web_search_tool.py<br/>(DDGS Live Search + Location Parser)"]
+        Agent -->|2. Public LinkedIn Jobs| ToolLI["💼 tools/job_scanner_tool.py<br/>(LinkedIn Guest API + HTTPX)"]
+        Agent -->|3. DOM & Email Extraction| ToolBrowse["🌐 tools/browser_tool.py<br/>(HTTPX Browser Headers + Regex Parser)"]
+    end
+
+    subgraph Anti-Duplicate & Tracking
+        Agent -->|4. Check Already Applied?| Guard["🛡️ tools/excel_tracker_tool.py<br/>(data/applied_jobs_tracker.xlsx)"]
+    end
+
+    subgraph Outreach Delivery
+        Guard -->|5. If not applied -> Dispatch| ToolSMTP["📧 tools/email_tool.py<br/>(Ahmad Faraz Identity + Ahmad_Faraz_CV.pdf)"]
+        ToolSMTP --> Gmail["📬 Gmail SMTP Server<br/>(smtp.gmail.com:587 STARTTLS)"]
+        Gmail --> Recipient["📥 Recruiter / HR Inbox"]
+        Gmail --> SentFolder["📁 Gmail Sent Mail Folder"]
+    end
+
+    ToolSMTP -->|6. Record Sent Event| ExcelLog[("📊 data/applied_jobs_tracker.xlsx<br/>& applied_jobs_tracker.csv")]
+    ToolSMTP -->|7. Update Queue State| Queue[("📋 data/pasted_jobs.json<br/>& jobs_database.json")]
+```
+
+---
+
+## ✨ Key Capabilities
+
+### 1. Natural Language Web Job Search (`--prompt`)
+Type free-form prompts such as `"search for jobs in lahore, Islamabad about internships and jobs"`. The parser automatically identifies:
+- **Locations**: Lahore, Islamabad, Rawalpindi, Karachi, Remote.
+- **Role Types**: Internships, Trainee, Fresh Graduate, Junior, Full-time.
+- **Tech Stack**: Python, Django, FastAPI, React, AI Agents.
+- Returns real openings from **Indeed Pakistan**, **Rozee.pk**, **LinkedIn**, and company career pages.
+
+### 2. Live Public LinkedIn Crawler (`--linkedin`)
+Scrapes live public job postings directly from LinkedIn's guest search endpoint with zero login walls or account checkpoint risks.
+
+### 3. Direct URL Inspector & Automated Outreach (`--apply-url`)
+Inspects any company career page or job listing URL via HTTPX:
+- Extracts job title, company name, and requirements.
+- Automatically discovers recruiter contact emails (`mailto:` and text patterns).
+- Drafts an organic application email with CV attached.
+
+### 4. Excel Application Tracker & Anti-Duplicate Guard
+- Persists all sent applications into a native Excel workbook ([`data/applied_jobs_tracker.xlsx`](file:///F:/Antigravity-cli/job-automation-smtp/data/applied_jobs_tracker.xlsx)) with formatted green status badges and timestamps.
+- **Strict Anti-Duplicate Guard**: Checks recipient email and company name before sending — **permanently prevents accidental double-sending to the same recruiter or company**.
+
+### 5. Interactive Paste Wizard & Queue (`--paste`, `--apply-queue`)
+Paste custom job leads from personal sources (WhatsApp, email, Discord, ROZEE.pk) and send immediately or queue for batch outreach.
+
+---
+
+## 🛠️ CLI Usage & Command Reference
+
+Navigate to the project directory:
+```powershell
+cd F:\Antigravity-cli\job-automation-smtp
+```
+
+### Complete Command Cheat Sheet
+
+| Command | Purpose |
+|---|---|
+| `python run.py --prompt "query"` | Search web & job boards via natural prompt and apply interactively |
+| `python run.py --prompt` | Interactive prompt mode to search jobs and internships |
+| `python run.py --linkedin "Python" --location "Lahore"` | Search live LinkedIn openings and apply directly |
+| `python run.py --apply-url "<URL>"` | Inspect any job posting URL, extract recruiter email, and apply |
+| `python run.py --apply-url "<URL>" --to "hr@comp.com"` | Apply to a specific URL with an explicit recruiter email override |
+| `python run.py --paste` | Interactive wizard to paste job details and apply or queue |
+| `python run.py --apply-queue` | Dispatch application emails to all pending jobs in queue |
+| `python run.py --tracker` | View application statistics and Excel tracker file details |
+| `python run.py --test-cv` | Send a preview application email with CV attached to your inbox |
+| `python run.py --test-smtp` | Test Gmail SMTP connection and credentials |
+| `python run.py --browse "<URL>"` | Inspect raw/cleaned text of any web page via browser tool |
+| `python run.py --history` | View historical evaluated opportunities from database |
+| `python run.py --daemon --interval 3600` | Run autonomous background sweep every hour |
+
+---
+
+## 📊 Live Application Track Record
+
+Current verified applications dispatched and recorded in [`data/applied_jobs_tracker.xlsx`](file:///F:/Antigravity-cli/job-automation-smtp/data/applied_jobs_tracker.xlsx):
+
+| ID | Timestamp | Company | Role Applied | Recruiter Email | Status |
+|:---:|:---:|---|---|---|:---:|
+| **APP-0001** | `2026-10-29 23:07` | **Rolustech** | Associate Software Engineer | `Careers@rolustech.com` | **APPLIED** |
+| **APP-0002** | `2026-10-29 23:07` | **Contour Software** | Trainee Software Developer | `careers@contour-software.com` | **APPLIED** |
+| **APP-0003** | `2026-10-29 23:07` | **Clustox** | Software Engineering Intern | `hr@clustox.com` | **APPLIED** |
+| **APP-0004** | `2026-10-29 23:11` | **Prime System Solutions** | Trainee Engineer (Internship to Hire) | `info@primesystemsolutions.com` | **APPLIED** |
+| **APP-0005** | `2026-10-29 23:11` | **KryptoMind LLC** | Software QA / Python Intern | `jobs@kryptomind.com` | **APPLIED** |
+
+---
+
+## 📁 Project Structure
+
+```
+job-automation-smtp/
+├── .env                          # Real Gmail SMTP credentials & alert email
+├── .env.example                  # Template configuration file
+├── requirements.txt              # Dependencies (google-antigravity, httpx, openpyxl, ddgs, etc.)
+├── config.py                     # Central configuration loader
+├── run.py                        # Unified CLI runner with all command flags
+├── workflow.py                   # Antigravity SDK Agent orchestration
+├── antigravity_cli_agent.py      # Zero-API-key bridge leveraging authenticated agy session
+├── test_smtp.py                  # Standalone SMTP connection tester
+├── data/
+│   ├── Ahmad_Faraz_CV.pdf        # Ahmad Faraz's CV PDF attached to applications
+│   ├── applied_jobs_tracker.xlsx # Formatted Excel tracking workbook (Anti-duplicate source)
+│   ├── applied_jobs_tracker.csv  # Companion CSV file
+│   ├── pasted_jobs.json          # Queue for copy-pasted job opportunities
+│   └── jobs_database.json        # Persistent database for scored opportunities
+└── tools/
+    ├── __init__.py
+    ├── browser_tool.py           # HTTPX browser agent & contact email regex extractor
+    ├── email_tool.py             # SMTP dispatcher with anti-duplicate check & CV attachment
+    ├── excel_tracker_tool.py     # openpyxl Excel tracking and deduplication engine
+    ├── job_scanner_tool.py       # LinkedIn public guest crawler & pasted queue manager
+    ├── web_search_tool.py        # DDGS live web search & natural language prompt parser
+    ├── read_sent_emails.py       # Gmail IMAP utility used to inspect sent email patterns
+    └── tracker_tool.py           # State management & qualification tracker
+```
+
+---
+
+## 🔐 Environment Variables (`.env`)
+
+```ini
+# Gmail SMTP Credentials
+SMTP_HOST=smtp.gmail.com
+SMTP_PORT=587
+SMTP_USE_TLS=True
+SMTP_USER=dev.ahmadfaraz24@gmail.com
+SMTP_PASSWORD=your_gmail_app_password
+SMTP_FROM_NAME=Ahmad Faraz
+ALERT_RECIPIENT_EMAIL=dev.ahmadfaraz24@gmail.com
+
+# Job Automation Preferences
+JOB_SEARCH_QUERY=Python Developer
+MIN_HOURLY_RATE=0.0
+REMOTE_ONLY=False
+SCAN_INTERVAL_SECONDS=3600
+```

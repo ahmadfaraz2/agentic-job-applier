@@ -1,0 +1,230 @@
+"""
+SMTP Email Dispatch Tool for Google Antigravity SDK Agent.
+Supports STARTTLS (port 587) and SSL (port 465), multipart HTML/text,
+CV attachments, and exact personal styling matching Ahmad Faraz's sent emails.
+"""
+
+from __future__ import annotations
+
+import logging
+import mimetypes
+import os
+import smtplib
+from email.message import EmailMessage
+from email.utils import formataddr
+from pathlib import Path
+from typing import List, Optional
+
+from config import Config
+from tools.excel_tracker_tool import is_already_applied, record_excel_application
+
+logger = logging.getLogger(__name__)
+
+# Default CV path
+DEFAULT_CV_PATH = Config.DATA_DIR / "Ahmad_Faraz_CV.pdf"
+
+# Ahmad Faraz's standard professional signature
+STANDARD_SIGNATURE_TEXT = """
+Regards,
+Ahmad Faraz
++92 307 5709318
+LinkedIn: https://www.linkedin.com/in/ahmad-faraz-/
+GitHub: https://github.com/ahmadfaraz2
+""".strip()
+
+STANDARD_SIGNATURE_HTML = """
+<div style="margin-top: 24px; padding-top: 14px; border-top: 1px solid #e2e8f0; font-family: sans-serif; color: #334155;">
+    <p style="margin: 0; font-weight: 600; color: #0f172a;">Regards,</p>
+    <p style="margin: 2px 0 0 0; font-weight: 700; font-size: 15px; color: #0f172a;">Ahmad Faraz</p>
+    <p style="margin: 2px 0 0 0; font-size: 14px; color: #475569;">+92 307 5709318</p>
+    <p style="margin: 4px 0 0 0; font-size: 13px;">
+        <a href="https://www.linkedin.com/in/ahmad-faraz-/" style="color: #0284c7; text-decoration: none;">LinkedIn</a> |
+        <a href="https://github.com/ahmadfaraz2" style="color: #0284c7; text-decoration: none;">GitHub</a>
+    </p>
+</div>
+""".strip()
+
+def send_smtp_email(
+    to_email: str,
+    subject: str,
+    body_html: str,
+    body_text: str = "",
+    attachments: Optional[List[str]] = None,
+) -> str:
+    """Sends an email notification or application via SMTP with Ahmad Faraz's professional sender identity.
+
+    Args:
+        to_email: The recipient's email address (e.g. 'client@example.com' or 'recruiter@company.com').
+        subject: The subject line of the email.
+        body_html: Rich HTML formatted email body.
+        body_text: Plain-text fallback for email clients that do not render HTML.
+        attachments: Optional list of file paths to attach (e.g. CV / Resume PDF).
+
+    Returns:
+        A status string indicating success or the specific error encountered.
+    """
+    to_email = to_email.strip()
+    if not to_email or "@" not in to_email:
+        return f"Error: Invalid recipient email address '{to_email}'."
+
+    # If body_text wasn't explicitly supplied, generate a basic plain-text representation
+    if not body_text:
+        import re
+        body_text = re.sub(r"<[^>]+>", " ", body_html)
+        body_text = " ".join(body_text.split())
+
+    # Check if SMTP credentials have been configured
+    if not Config.is_smtp_configured():
+        msg = (
+            f"[DRY-RUN SIMULATION] Simulated email from Ahmad Faraz to: {to_email}\n"
+            f"Subject: {subject}\n"
+            f"Body preview: {body_text[:180]}..."
+        )
+        logger.warning(msg)
+        return f"Success (Simulated): {msg}"
+
+    # Build MIME Email Message
+    msg = EmailMessage()
+    msg["Subject"] = subject
+    # Real sender identity: Always Ahmad Faraz
+    sender_name = "Ahmad Faraz"
+    msg["From"] = formataddr((sender_name, Config.SMTP_USER))
+    msg["To"] = to_email
+
+    # Set pure plain text
+    msg.set_content(body_text)
+    
+    # Only attach HTML alternative if explicitly provided
+    if body_html and body_html.strip():
+        msg.add_alternative(body_html, subtype="html")
+
+    # Handle Attachments (e.g. Ahmad_Faraz_CV.pdf)
+    if attachments:
+        for fpath_str in attachments:
+            path = Path(fpath_str)
+            if not path.is_absolute():
+                path = Config.DATA_DIR / path
+            if path.exists() and path.is_file():
+                try:
+                    ctype, encoding = mimetypes.guess_type(str(path))
+                    if ctype is None or encoding is not None:
+                        ctype = "application/octet-stream"
+                    maintype, subtype = ctype.split("/", 1)
+                    with open(path, "rb") as f:
+                        msg.add_attachment(
+                            f.read(),
+                            maintype=maintype,
+                            subtype=subtype,
+                            filename=path.name
+                        )
+                    logger.info(f"Attached file: {path.name}")
+                except Exception as e:
+                    logger.error(f"Failed to attach {path}: {e}")
+
+    try:
+        if Config.SMTP_USE_SSL or Config.SMTP_PORT == 465:
+            with smtplib.SMTP_SSL(Config.SMTP_HOST, Config.SMTP_PORT, timeout=20) as server:
+                server.login(Config.SMTP_USER, Config.SMTP_PASSWORD)
+                server.send_message(msg)
+        else:
+            with smtplib.SMTP(Config.SMTP_HOST, Config.SMTP_PORT, timeout=20) as server:
+                server.ehlo()
+                if Config.SMTP_USE_TLS:
+                    server.starttls()
+                    server.ehlo()
+                server.login(Config.SMTP_USER, Config.SMTP_PASSWORD)
+                server.send_message(msg)
+
+        success_msg = f"Email successfully delivered to '{to_email}' with subject '{subject}' from Ahmad Faraz."
+        logger.info(success_msg)
+        return f"Success: {success_msg}"
+
+    except smtplib.SMTPAuthenticationError as e:
+        err = f"SMTP Authentication Error ({e.smtp_code}): Please check your Gmail App Password."
+        logger.error(err)
+        return f"Error: {err}"
+    except Exception as e:
+        err = f"Failed to send email via SMTP: {type(e).__name__} - {e}"
+        logger.error(err)
+        return f"Error: {err}"
+
+def send_cv_application_email(
+    to_email: str,
+    job_title: str,
+    company: str,
+    custom_paragraph: str = "",
+    source_platform: str = "Web",
+    force: bool = False
+) -> str:
+    """Sends a professional job application email with Ahmad Faraz's CV attached,
+    matching his exact phrasing, greetings, background, and signature from previous sent emails.
+    Automatically checks the Excel tracker to prevent duplicate outreach.
+
+    Args:
+        to_email: Recruiter or company contact email.
+        job_title: The position title (e.g. 'Associate Software Engineer', 'Python AI Agent Developer').
+        company: Company name (e.g. 'Rolustech', 'Lemon.io').
+        custom_paragraph: Optional custom focus tailored to this specific job.
+        source_platform: Where the job was found (e.g. 'LinkedIn', 'User Paste', 'Direct').
+        force: If True, bypasses deduplication check.
+
+    Returns:
+        Status string of the delivery.
+    """
+    to_email = to_email.strip()
+    company = company.strip()
+    job_title = job_title.strip()
+
+    # Deduplication Check against Excel Tracker
+    if not force and is_already_applied(recipient_email=to_email, company=company, job_title=job_title):
+        msg = f"Skipped (Deduplication): Already applied to '{to_email}' for '{job_title}' at '{company}'. Duplicate outreach blocked."
+        logger.info(msg)
+        return f"Skipped: {msg}"
+
+    subject = f"Application for {job_title} - Ahmad Faraz"
+
+    # Default pitch if custom_paragraph is not supplied
+    if not custom_paragraph:
+        custom_paragraph = (
+            f"I saw the {job_title} opening at {company} and would like to apply. "
+            f"I'm a Software Engineering graduate with hands-on experience building Python (Django/FastAPI), "
+            f"JavaScript/React, and AI Agent applications, working with REST APIs, databases, Git, and "
+            f"browser automation (Selenium & Playwright). I enjoy debugging complex systems with care and "
+            f"am keen to contribute to your engineering team."
+        )
+
+    body_text = f"""Hello {company} team,
+
+{custom_paragraph}
+
+I'm based in Sargodha and open to discussing remote work or relocation if needed. I've attached my CV for your review and would be glad to talk about how I can contribute if my background is a match.
+
+{STANDARD_SIGNATURE_TEXT}
+"""
+
+    attachments = []
+    if DEFAULT_CV_PATH.exists():
+        attachments.append(str(DEFAULT_CV_PATH))
+
+    result = send_smtp_email(
+        to_email=to_email,
+        subject=subject,
+        body_html="",
+        body_text=body_text,
+        attachments=attachments
+    )
+
+    if "Success" in result:
+        # Record into Excel Tracker
+        record_excel_application(
+            company=company,
+            job_title=job_title,
+            recipient_email=to_email,
+            source=source_platform,
+            status="APPLIED",
+            cv_attached="Ahmad_Faraz_CV.pdf",
+            subject=subject,
+            pitch_snippet=custom_paragraph[:200]
+        )
+
+    return result

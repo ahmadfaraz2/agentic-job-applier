@@ -1,0 +1,137 @@
+{
+  "version": "1.0",
+  "updated_at": "2026-10-29T18:11:25.335240+00:00",
+  "jobs": {
+    "rok_1137572": {
+      "job_id": "rok_1137572",
+      "title": "Senior Software Engineer LATAM",
+      "company": "Wagmo",
+      "status": "QUALIFIED",
+      "match_score": 100,
+      "pitch": "Hi Wagmo team, I noticed your listing for 'Senior Software Engineer LATAM'. Having built autonomous multi-agent pipelines using Python, HTTPX browser skills, and background task orchestration, I can rapidly deliver a production-ready solution that exceeds requirements.",
+      "evaluated_at": "2026-10-29T16:58:50.244087+00:00"
+    },
+    "rok_1137568": {
+      "job_id": "rok_1137568",
+      "title": "Solutions Engineer",
+      "company": "Onebrief",
+      "status": "QUALIFIED",
+      "match_score": 100,
+      "pitch": "Hi Onebrief team, I noticed your listing for 'Solutions Engineer'. Having built autonomous multi-agent pipelines using Python, HTTPX browser skills, and background task orchestration, I can rapidly deliver a production-ready solution that exceeds requirements.",
+      "evaluated_at": "2026-10-29T16:58:50.258279+00:00"
+    },
+    "rok_1137557": {
+      "job_id": "rok_1137557",
+      "title": "Senior DevOps Engineer",
+      "company": "Lemon.io",
+      "status": "QUALIFIED",
+      "match_score": 100,
+      "pitch": "Hi Lemon.io team, I noticed your listing for 'Senior DevOps Engineer'. Having built autonomous multi-agent pipelines using Python, HTTPX browser skills, and background task orchestration, I can rapidly deliver a production-ready solution that exceeds requirements.",
+      "evaluated_at": "2026-10-29T16:58:50.277903+00:00"
+    },
+    "rok_1137554": {
+      "job_id": "rok_1137554",
+      "title": "Accounting Operations",
+      "company": "Plaid",
+      "status": "QUALIFIED",
+      "match_score": 100,
+      "pitch": "Hi Plaid team, I noticed your listing for 'Accounting Operations'. Having built autonomous multi-agent pipelines using Python, HTTPX browser skills, and background task orchestration, I can rapidly deliver a production-ready solution that exceeds requirements.",
+      "evaluated_at": "2026-10-29T16:58:50.289272+00:00"
+    },
+    "rok_1137551": {
+      "job_id": "rok_1137551",
+      "title": "Senior Backend Engineer",
+      "company": "DuckDuckGo",
+      "status": "QUALIFIED",
+      "match_score": 100,
+      "pitch": "Hi DuckDuckGo team, I noticed your listing for 'Senior Backend Engineer'. Having built autonomous multi-agent pipelines using Python, HTTPX browser skills, and background task orchestration, I can rapidly deliver a production-ready solution that exceeds requirements.",
+      "evaluated_at": "2026-10-29T16:58:50.302382+00:00"
+    },
+    "rok_1137548": {
+      "job_id": "rok_1137548",
+      "title": "Risk Analyst",
+      "company": "Pavago",
+      "status": "QUALIFIED",
+      "match_score": 100,
+      "pitch": "Hi Pavago team, I noticed your listing for 'Risk Analyst'. Having built autonomous multi-agent pipelines using Python, HTTPX browser skills, and background task orchestration, I can rapidly deliver a production-ready solution that exceeds requirements.",
+      "evaluated_at": "2026-10-29T16:58:50.313955+00:00"
+    },
+    "job_ag_101": {
+      "job_id": "job_ag_101",
+      "title": "Senior AI Agent & Python Automation Engineer",
+      "company": "Cognitive Ops Inc.",
+      "status": "QUALIFIED",
+      "match_score": 100,
+      "pitch": "Hi Cognitive Ops Inc. team, I noticed your listing for 'Senior AI Agent & Python Automation Engineer'. Having built autonomous multi-agent pipelines using Python, HTTPX browser skills, and background task orchestration, I can rapidly deliver a production-ready solution that exceeds requirements.",
+      "evaluated_at": "2026-10-29T16:58:50.328219+00:00"
+    },
+    "job_ag_102": {
+      "job_id": "job_ag_102",
+      "title": "Fullstack Python & React Workflow Automation Developer",
+      "company": "Nexus Flow Dynamics",
+      "status": "QUALIFIED",
+      "match_score": 100,
+      "pitch": "Hi Nexus Flow Dynamics team, I noticed your listing for 'Fullstack Python & React Workflow Automation Developer'. Having built autonomous multi-agent pipelines using Python, HTTPX browser skills, and background task orchestration, I can rapidly deliver a production-ready solution that exceeds requirements.",
+      "evaluated_at": "2026-10-29T16:58:50.341762+00:00"
+    },
+    "job_ag_104": {
+      "job_id": "job_ag_104",
+      "title": "Autonomous LLM Workflow Engineer (MCP & Custom Tools)",
+      "company": "Aether AI Labs",
+      "status": "QUALIFIED",
+      "match_score": 100,
+      "pitch": "Hi Aether AI Labs team, I noticed your listing for 'Autonomous LLM Workflow Engineer (MCP & Custom Tools)'. Having built autonomous multi-agent pipelines using Python, HTTPX browser skills, and background task orchestration, I can rapidly deliver a production-ready solution that exceeds requirements.",
+      "evaluated_at": "2026-10-29T16:58:50.354940+00:00"
+    },
+    "contour_trainee": {
+      "job_id": "contour_trainee",
+      "title": "Trainee Software Developer",
+      "company": "Contour Software",
+      "status": "APPLIED",
+      "match_score": 98,
+      "pitch": "Dispatched tailored application email with CV attached to careers@contour-software.com",
+      "evaluated_at": "2026-10-29T18:02:36.723754+00:00"
+    },
+    "clustox_intern": {
+      "job_id": "clustox_intern",
+      "title": "Software Engineering Intern",
+      "company": "Clustox",
+      "status": "APPLIED",
+      "match_score": 98,
+      "pitch": "Dispatched tailored application email with CV attached to hr@clustox.com",
+      "evaluated_at": "2026-10-29T18:02:42.570591+00:00"
+    },
+    "rolustech_ase": {
+      "job_id": "rolustech_ase",
+      "title": "Associate Software Engineer",
+      "company": "Rolustech",
+      "status": "APPLIED",
+      "match_score": 98,
+      "pitch": "Dispatched tailored application email with CV attached to Careers@rolustech.com",
+      "evaluated_at": "2026-10-29T18:03:10.928535+00:00"
+    },
+    "prime_trainee": {
+      "job_id": "prime_trainee",
+      "title": "Trainee Engineer",
+      "company": "Prime System Solutions",
+      "status": "APPLIED",
+      "match_score": 98,
+      "pitch": "I saw your Trainee Engineer opening (Internship to Hire Program) in Lahore and wanted to apply. I am a Software Engineering graduate with hands-on experience building applications in Python (Django and FastAPI), React, REST APIs, Git, and automation scripting. I am eager to learn, tackle challenging engineering tasks, and grow with Prime System Solutions.",
+      "evaluated_at": "2026-10-29T18:11:19.551344+00:00"
+    },
+    "kryptomind_intern": {
+      "job_id": "kryptomind_intern",
+      "title": "Software QA / Python Intern",
+      "company": "KryptoMind LLC",
+      "status": "APPLIED",
+      "match_score": 98,
+      "pitch": "I saw your Software QA / Python Intern opening in Lahore and wanted to apply. I am a Software Engineering graduate with hands-on experience in Python scripting, test automation (Playwright & Selenium), REST APIs, and Git. I have a meticulous eye for debugging and software quality, and I am keen to contribute actively to KryptoMind's engineering and QA processes.",
+      "evaluated_at": "2026-10-29T18:11:25.335212+00:00"
+    }
+  },
+  "stats": {
+    "total_evaluated": 14,
+    "qualified": 14,
+    "rejected": 0
+  }
+}
