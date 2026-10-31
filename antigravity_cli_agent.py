@@ -266,7 +266,7 @@ class AntigravityCliAgent:
                         {cards_html}
                         <div style="margin-top: 24px; padding-top: 14px; border-top: 1px solid #e2e8f0; font-size: 13px; color: #64748b;">
                             <p style="margin: 0; font-weight: 600; color: #334155;">Ahmad Faraz | Software Engineer</p>
-                            <p style="margin: 2px 0 0 0;">+92 307 5709318 | Sargodha, Pakistan</p>
+                            <p style="margin: 2px 0 0 0;">Sargodha, Pakistan</p>
                             <p style="margin: 2px 0 0 0;"><a href="https://www.linkedin.com/in/ahmad-faraz-/" style="color: #0284c7;">LinkedIn</a> &bull; <a href="https://github.com/ahmadfaraz2" style="color: #0284c7;">GitHub</a></p>
                         </div>
                     </div>

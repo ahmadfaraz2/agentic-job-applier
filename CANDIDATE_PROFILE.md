@@ -1,8 +1,6 @@
 # 👤 Ahmad Faraz — Candidate Dossier & Ground Truth Profile
 
 > **Target Identity:** Ahmad Faraz  
-> **Contact Email:** `dev.ahmadfaraz24@gmail.com`  
-> **Phone:** `+92 307 5709318`  
 > **Location:** Sargodha, Pakistan (Open to On-site in Lahore / Islamabad & Remote)  
 > **LinkedIn:** [linkedin.com/in/ahmad-faraz-](https://www.linkedin.com/in/ahmad-faraz-/)  
 > **GitHub:** [github.com/ahmadfaraz2](https://github.com/ahmadfaraz2)  

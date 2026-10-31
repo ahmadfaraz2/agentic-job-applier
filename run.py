@@ -148,7 +148,7 @@ def handle_paste_smart(to_email_arg: str = "", raw_post_text: str = ""):
     print(f"Hello {company} team,\n")
     print(tailored_pitch)
     print("\nI'm based in Sargodha and open to discussing remote work or relocation if needed. I've attached my CV for your review and would be glad to talk about how I can contribute if my background is a match.\n")
-    print("Regards,\nAhmad Faraz\n+92 307 5709318\nLinkedIn: https://www.linkedin.com/in/ahmad-faraz-/\nGitHub: https://github.com/ahmadfaraz2")
+    print("Regards,\nAhmad Faraz\nLinkedIn: https://www.linkedin.com/in/ahmad-faraz-/\nGitHub: https://github.com/ahmadfaraz2")
     print("=" * 65)
 
     if already_applied:
@@ -297,7 +297,6 @@ I'm based in Sargodha and open to discussing remote work or relocation if needed
 
 Regards,
 Ahmad Faraz
-+92 307 5709318
 LinkedIn: https://www.linkedin.com/in/ahmad-faraz-/
 GitHub: https://github.com/ahmadfaraz2
 """
@@ -498,7 +497,10 @@ def main():
         return
 
     if args.test_cv:
-        recipient = args.to.strip() or Config.ALERT_RECIPIENT_EMAIL or "dev.ahmadfaraz24@gmail.com"
+        recipient = args.to.strip() or Config.ALERT_RECIPIENT_EMAIL
+        if not recipient:
+            print("[!] Please set ALERT_RECIPIENT_EMAIL in .env or pass --to <email>")
+            return
         print(f"\n[Application Engine] Dispatching preview CV application to {recipient}...")
         result = send_cv_application_email(
             to_email=recipient,

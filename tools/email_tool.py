@@ -48,25 +48,30 @@ def strip_all_emojis(text: str) -> str:
 DEFAULT_CV_PATH = Config.DATA_DIR / "Ahmad_Faraz_CV.pdf"
 
 # Ahmad Faraz's standard professional signature
-STANDARD_SIGNATURE_TEXT = """
-Regards,
-Ahmad Faraz
-+92 307 5709318
+def get_standard_signature_text() -> str:
+    phone = getattr(Config, "SENDER_PHONE", "")
+    phone_part = f"\n{phone}" if phone else ""
+    return f"""Regards,
+Ahmad Faraz{phone_part}
 LinkedIn: https://www.linkedin.com/in/ahmad-faraz-/
-GitHub: https://github.com/ahmadfaraz2
-""".strip()
+GitHub: https://github.com/ahmadfaraz2""".strip()
 
-STANDARD_SIGNATURE_HTML = """
-<div style="margin-top: 24px; padding-top: 14px; border-top: 1px solid #e2e8f0; font-family: sans-serif; color: #334155;">
+STANDARD_SIGNATURE_TEXT = get_standard_signature_text()
+
+def get_standard_signature_html() -> str:
+    phone = getattr(Config, "SENDER_PHONE", "")
+    phone_p = f'<p style="margin: 2px 0 0 0; font-size: 14px; color: #475569;">{phone}</p>' if phone else ""
+    return f"""<div style="margin-top: 24px; padding-top: 14px; border-top: 1px solid #e2e8f0; font-family: sans-serif; color: #334155;">
     <p style="margin: 0; font-weight: 600; color: #0f172a;">Regards,</p>
     <p style="margin: 2px 0 0 0; font-weight: 700; font-size: 15px; color: #0f172a;">Ahmad Faraz</p>
-    <p style="margin: 2px 0 0 0; font-size: 14px; color: #475569;">+92 307 5709318</p>
+    {phone_p}
     <p style="margin: 4px 0 0 0; font-size: 13px;">
         <a href="https://www.linkedin.com/in/ahmad-faraz-/" style="color: #0284c7; text-decoration: none;">LinkedIn</a> |
         <a href="https://github.com/ahmadfaraz2" style="color: #0284c7; text-decoration: none;">GitHub</a>
     </p>
-</div>
-""".strip()
+</div>""".strip()
+
+STANDARD_SIGNATURE_HTML = get_standard_signature_html()
 
 def send_smtp_email(
     to_email: str,

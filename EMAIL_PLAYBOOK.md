@@ -82,7 +82,6 @@ I'm based in Sargodha and open to discussing remote work or relocation if needed
 
 Regards,
 Ahmad Faraz
-+92 307 5709318
 LinkedIn: https://www.linkedin.com/in/ahmad-faraz-/
 GitHub: https://github.com/ahmadfaraz2
 ```

@@ -21,6 +21,7 @@ import subprocess
 from typing import Any, Dict, List, Optional
 
 from tools.pitch_customizer_tool import generate_tailored_pitch
+from config import Config
 
 logger = logging.getLogger(__name__)
 
@@ -397,7 +398,8 @@ def _parse_with_antigravity_model(raw_text: str, candidate_name: str = CANDIDATE
     if not agy_bin:
         return None
 
-    prompt = f"""You are the Antigravity Executive Outreach Intelligence Engine for Ahmad Faraz (dev.ahmadfaraz24@gmail.com).
+    candidate_email = Config.SMTP_FROM_EMAIL or "Ahmad Faraz"
+    prompt = f"""You are the Antigravity Executive Outreach Intelligence Engine for Ahmad Faraz ({candidate_email}).
 Your job is to read this raw hiring post, reason carefully, and extract structured job intelligence according to strict rules:
 
 CRITICAL RULES:

@@ -65,8 +65,9 @@ class Config:
     SMTP_USE_SSL: bool = _get_bool("SMTP_USE_SSL", False)
     SMTP_USER: str = os.getenv("SMTP_USER", "")
     SMTP_PASSWORD: str = os.getenv("SMTP_PASSWORD", "")
-    SMTP_FROM_EMAIL: str = os.getenv("SMTP_FROM_EMAIL", os.getenv("SMTP_USER", "dev.ahmadfaraz24@gmail.com"))
+    SMTP_FROM_EMAIL: str = os.getenv("SMTP_FROM_EMAIL", os.getenv("SMTP_USER", ""))
     SMTP_FROM_NAME: str = os.getenv("SMTP_FROM_NAME", "Ahmad Faraz")
+    SENDER_PHONE: str = os.getenv("SENDER_PHONE", "")
     ALERT_RECIPIENT_EMAIL: str = os.getenv("ALERT_RECIPIENT_EMAIL", "")
 
     # IMAP Inbox Listener Settings

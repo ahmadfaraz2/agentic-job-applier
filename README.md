@@ -8,9 +8,8 @@ All outgoing application emails represent **Ahmad Faraz**'s genuine sender ident
 
 ## 👤 Ahmad Faraz's Authentic Application Profile
 
-- **Sender Identity**: `Ahmad Faraz <dev.ahmadfaraz24@gmail.com>` *(Never automated bot names)*
+- **Sender Identity**: `Ahmad Faraz <your_email@gmail.com>` *(Authenticated personal sender)*
 - **Contact Details**:
-  - **Phone**: `+92 307 5709318`
   - **Location**: Sargodha, Pakistan (Open to Remote & Relocation)
   - **LinkedIn**: [linkedin.com/in/ahmad-faraz-](https://www.linkedin.com/in/ahmad-faraz-/)
   - **GitHub**: [github.com/ahmadfaraz2](https://github.com/ahmadfaraz2)
@@ -199,10 +198,10 @@ job-automation-smtp/
 SMTP_HOST=smtp.gmail.com
 SMTP_PORT=587
 SMTP_USE_TLS=True
-SMTP_USER=dev.ahmadfaraz24@gmail.com
+SMTP_USER=your_email@gmail.com
 SMTP_PASSWORD=your_gmail_app_password
 SMTP_FROM_NAME=Ahmad Faraz
-ALERT_RECIPIENT_EMAIL=dev.ahmadfaraz24@gmail.com
+ALERT_RECIPIENT_EMAIL=your_email@gmail.com
 
 # Job Automation Preferences
 JOB_SEARCH_QUERY=Python Developer

@@ -1,7 +1,7 @@
 # 📜 Ahmad Faraz — Professional Outreach & Job Application Guidelines
 
 > **Status:** Active Standard & Core Directive for Antigravity AI Agents & Parsers  
-> **Target Candidate:** Ahmad Faraz (`dev.ahmadfaraz24@gmail.com`)  
+> **Target Candidate:** Ahmad Faraz  
 > **Applies to:** Email Dispatch, Pitch Generation, Subject Line Formulation, Raw Post Parsing  
 
 ---
@@ -71,7 +71,6 @@ Never use generic AI buzzword soup or claim skills not in Ahmad Faraz's real rep
   ```text
   Regards,
   Ahmad Faraz
-  +92 307 5709318
   LinkedIn: https://www.linkedin.com/in/ahmad-faraz-/
   GitHub: https://github.com/ahmadfaraz2
   ```

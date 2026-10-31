@@ -11,6 +11,8 @@ import sys
 from email.header import decode_header
 from typing import List, Dict, Any
 
+from config import Config
+
 # Ensure UTF-8 output on Windows consoles
 if sys.platform == "win32":
     try:
@@ -53,8 +55,8 @@ def extract_body(msg: email.message.Message) -> str:
     return body.strip()
 
 def inspect_sent_mail(limit: int = 15) -> List[Dict[str, Any]]:
-    mail = imaplib.IMAP4_SSL("imap.gmail.com", 993)
-    mail.login("dev.ahmadfaraz24@gmail.com", "icywtjevlauqlxju")
+    mail = imaplib.IMAP4_SSL(Config.IMAP_HOST, Config.IMAP_PORT)
+    mail.login(Config.SMTP_USER, Config.SMTP_PASSWORD)
     
     # Select sent mailbox
     mail.select('"[Gmail]/Sent Mail"')

@@ -22,7 +22,7 @@ if sys.platform == "win32":
     except AttributeError:
         pass
 
-RECIPIENT = "dev.ahmadfaraz24@gmail.com"
+RECIPIENT = Config.ALERT_RECIPIENT_EMAIL or "user@example.com"
 CV_ATTACHMENT = [str(DEFAULT_CV_PATH)] if DEFAULT_CV_PATH.exists() else None
 
 # ==============================================================================
@@ -56,7 +56,7 @@ FORMAT_A_HTML = """
     <div style="margin-top: 24px; padding-top: 12px; border-top: 1px solid #e0e0e0; color: #3c4043;">
         <p style="margin: 0; font-weight: bold; color: #202124;">Regards,</p>
         <p style="margin: 2px 0 0 0; font-size: 15px; font-weight: bold; color: #1a73e8;">Ahmad Faraz</p>
-        <p style="margin: 2px 0 0 0; color: #5f6368;">+92 307 5709318</p>
+        <p style="margin: 2px 0 0 0; color: #5f6368;">Phone</p>
         <p style="margin: 4px 0 0 0;">
             <a href="https://www.linkedin.com/in/ahmad-faraz-/" style="color: #1a73e8; text-decoration: none;">LinkedIn</a> &bull; 
             <a href="https://github.com/ahmadfaraz2" style="color: #1a73e8; text-decoration: none;">GitHub</a>
@@ -103,7 +103,7 @@ FORMAT_B_HTML = """
     <div style="padding-top: 16px; border-top: 1px solid #f1f5f9; display: flex; justify-content: space-between; align-items: center;">
         <div>
             <p style="margin: 0; font-weight: 700; color: #0f172a; font-size: 15px;">Ahmad Faraz</p>
-            <p style="margin: 2px 0 0 0; color: #64748b; font-size: 13px;">+92 307 5709318</p>
+            <p style="margin: 2px 0 0 0; color: #64748b; font-size: 13px;">Phone</p>
         </div>
         <div>
             <a href="https://www.linkedin.com/in/ahmad-faraz-/" style="display: inline-block; background: #0077b5; color: #ffffff; text-decoration: none; padding: 6px 12px; border-radius: 6px; font-size: 12px; font-weight: 600; margin-right: 6px;">LinkedIn</a>
@@ -152,7 +152,7 @@ FORMAT_C_HTML = """
 
         <div style="margin-top: 24px; padding-top: 14px; border-top: 1px solid #e2e8f0; font-size: 13px; color: #475569;">
             <p style="margin: 0; font-weight: 700; color: #0f172a;">Ahmad Faraz</p>
-            <p style="margin: 2px 0 0 0;">+92 307 5709318 | <a href="mailto:dev.ahmadfaraz24@gmail.com" style="color: #2563eb; text-decoration: none;">dev.ahmadfaraz24@gmail.com</a></p>
+            <p style="margin: 2px 0 0 0;">Phone | <a href="mailto:your_email@gmail.com" style="color: #2563eb; text-decoration: none;">your_email@gmail.com</a></p>
             <p style="margin: 4px 0 0 0;">
                 <a href="https://www.linkedin.com/in/ahmad-faraz-/" style="color: #2563eb; text-decoration: none; font-weight: 500;">LinkedIn Profile</a> &bull; 
                 <a href="https://github.com/ahmadfaraz2" style="color: #2563eb; text-decoration: none; font-weight: 500;">GitHub Repositories</a>
@@ -189,7 +189,7 @@ FORMAT_D_HTML = """
     <div style="margin-top: 24px; padding-top: 14px; border-top: 2px solid #3b82f6; color: #334155;">
         <p style="margin: 0; font-weight: 600; color: #0f172a;">Regards,</p>
         <p style="margin: 2px 0 0 0; font-weight: 700; font-size: 16px; color: #0f172a;">Ahmad Faraz</p>
-        <p style="margin: 2px 0 0 0; font-size: 14px; color: #475569;">+92 307 5709318</p>
+        <p style="margin: 2px 0 0 0; font-size: 14px; color: #475569;">Phone</p>
         <p style="margin: 4px 0 0 0; font-size: 13px;">
             <a href="https://www.linkedin.com/in/ahmad-faraz-/" style="color: #2563eb; text-decoration: none; font-weight: 500;">LinkedIn</a> &bull; 
             <a href="https://github.com/ahmadfaraz2" style="color: #2563eb; text-decoration: none; font-weight: 500;">GitHub</a>
