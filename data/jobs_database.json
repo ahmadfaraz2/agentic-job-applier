@@ -1,6 +1,6 @@
 {
   "version": "1.0",
-  "updated_at": "2026-10-29T18:11:25.335240+00:00",
+  "updated_at": "2026-10-31T14:28:42.672770+00:00",
   "jobs": {
     "rok_1137572": {
       "job_id": "rok_1137572",
@@ -127,11 +127,20 @@
       "match_score": 98,
       "pitch": "I saw your Software QA / Python Intern opening in Lahore and wanted to apply. I am a Software Engineering graduate with hands-on experience in Python scripting, test automation (Playwright & Selenium), REST APIs, and Git. I have a meticulous eye for debugging and software quality, and I am keen to contribute actively to KryptoMind's engineering and QA processes.",
       "evaluated_at": "2026-10-29T18:11:25.335212+00:00"
+    },
+    "paste_4168555446599943048": {
+      "job_id": "paste_4168555446599943048",
+      "title": "→ 2–3 Month Paid Internship",
+      "company": "Devkiosk",
+      "status": "APPLIED",
+      "match_score": 95,
+      "pitch": "Applied via smart raw post paste to hr@devkiosk.com",
+      "evaluated_at": "2026-10-31T14:28:42.672747+00:00"
     }
   },
   "stats": {
-    "total_evaluated": 14,
-    "qualified": 14,
+    "total_evaluated": 15,
+    "qualified": 15,
     "rejected": 0
   }
 }

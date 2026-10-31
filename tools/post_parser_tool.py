@@ -175,7 +175,9 @@ def _infer_company(text: str, email_addr: str = "") -> str:
     return "Company"
 
 def _clean_role_title(title: str) -> str:
-    """Cleans and capitalizes role title, preserving acronyms like QA, SQA, AI."""
+    """Cleans and capitalizes role title, stripping stray bullets/arrows and preserving acronyms."""
+    # Strip leading bullet points, emojis, arrows, or dashes
+    title = re.sub(r'^[→•\-\*\:\>\s]+', '', title.strip())
     words = title.strip().split()
     formatted = []
     acronyms = {"qa": "QA", "sqa": "SQA", "ai": "AI", "api": "API", "ml": "ML"}

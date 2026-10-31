@@ -1,4 +1,4 @@
-# 🚀 Ahmad Faraz — Autonomous Job Automation & Organic Outreach Engine (v1.1.0)
+# 🚀 Ahmad Faraz — Autonomous Job Automation & Organic Outreach Engine (v1.2.0)
 
 An intelligent, autonomous job hunting and direct outreach pipeline built with the **Google Antigravity SDK** (`google-antigravity`), powered by **live web search**, **HTTPX browser emulation**, and an active authenticated Google Antigravity CLI session (`agy` with Gemini 3.8 Flash) — **with ZERO Gemini API key required**.
 
@@ -90,6 +90,14 @@ Dispatches instant rich embed notifications to your Discord channel whenever:
 - A new application is delivered with your CV.
 - A recruiter replies or schedules an interview.
 
+### 8. Smart Raw Post Parser (`--paste`, `--post`, `--post-file`)
+Takes completely unformatted, messy text from any LinkedIn hiring post, email, or announcement in one go (no tedious 5-question wizards!):
+- Automatically extracts **Company Name**, **Job Title / Role**, **Recruiter Email**, and **Location**.
+- Resolves company aliases & domains (e.g. `talent@systemsltd.com` -> `Systems Limited`).
+- Automatically generates the customized pitch for Ahmad Faraz.
+- Checks against [`applied_jobs_tracker.xlsx`](file:///F:/Antigravity-cli/job-automation-smtp/data/applied_jobs_tracker.xlsx) to prevent duplicate outreach.
+- Prompts for a single 1-key confirmation to dispatch (`Enter` = Yes!).
+
 ---
 
 ## 🛠️ CLI Usage & Command Reference
@@ -108,7 +116,9 @@ cd F:\Antigravity-cli\job-automation-smtp
 | `python run.py --linkedin "Python" --location "Lahore"` | Search live LinkedIn openings and apply directly |
 | `python run.py --apply-url "<URL>"` | Inspect any job posting URL, extract recruiter email, and apply |
 | `python run.py --apply-url "<URL>" --to "hr@comp.com"` | Apply to a specific URL with an explicit recruiter email override |
-| `python run.py --paste` | Interactive wizard to paste job details and apply or queue |
+| `python run.py --paste` | Paste complete raw LinkedIn post to auto-extract, draft, and dispatch |
+| `python run.py --post "<raw text>"` | Pass raw LinkedIn post directly via CLI argument to parse and apply |
+| `python run.py --post-file "post.txt"` | Read raw post from file to auto-extract, draft, and dispatch |
 | `python run.py --apply-queue` | Dispatch application emails to all pending jobs in queue |
 | `python run.py --check-replies` | Scan Gmail inbox for recruiter responses, detect interviews, and update Excel & Discord |
 | `python run.py --test-discord` | Send a test notification to your configured Discord webhook |
@@ -162,22 +172,7 @@ job-automation-smtp/
     ├── inbox_listener_tool.py    # Gmail IMAP listener & interview invite classifier
     ├── job_scanner_tool.py       # LinkedIn public guest crawler & pasted queue manager
     ├── pitch_customizer_tool.py  # Dynamic Skills Customizer tailored to job specs
-    ├── web_search_tool.py        # DDGS live web search & natural language prompt parser
-    ├── read_sent_emails.py       # Gmail IMAP utility used to inspect sent email patterns
-    └── tracker_tool.py           # State management & qualification tracker
-```
-├── data/
-│   ├── Ahmad_Faraz_CV.pdf        # Ahmad Faraz's CV PDF attached to applications
-│   ├── applied_jobs_tracker.xlsx # Formatted Excel tracking workbook (Anti-duplicate source)
-│   ├── applied_jobs_tracker.csv  # Companion CSV file
-│   ├── pasted_jobs.json          # Queue for copy-pasted job opportunities
-│   └── jobs_database.json        # Persistent database for scored opportunities
-└── tools/
-    ├── __init__.py
-    ├── browser_tool.py           # HTTPX browser agent & contact email regex extractor
-    ├── email_tool.py             # SMTP dispatcher with anti-duplicate check & CV attachment
-    ├── excel_tracker_tool.py     # openpyxl Excel tracking and deduplication engine
-    ├── job_scanner_tool.py       # LinkedIn public guest crawler & pasted queue manager
+    ├── post_parser_tool.py       # Smart raw post parser (auto extracts company, role, email)
     ├── web_search_tool.py        # DDGS live web search & natural language prompt parser
     ├── read_sent_emails.py       # Gmail IMAP utility used to inspect sent email patterns
     └── tracker_tool.py           # State management & qualification tracker

@@ -47,7 +47,7 @@ def _get_float(key: str, default: float) -> float:
 class Config:
     """Project-wide settings container."""
 
-    VERSION: str = "1.1.0"
+    VERSION: str = "1.2.0"
 
     # Paths
     PROJECT_ROOT: Path = PROJECT_ROOT
