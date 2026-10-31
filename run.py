@@ -129,6 +129,7 @@ def handle_paste_smart(to_email_arg: str = "", raw_post_text: str = ""):
     print("\n" + "=" * 65)
     print("  [+] Extracted Job Intelligence (OUTREACH_GUIDELINES.md Active)")
     print("=" * 65)
+    print(f"• Reasoning Engine: {parsed.get('model_engine', 'Gemini 3.8 Flash (Antigravity)')}")
     print(f"• Company:          {company}")
     print(f"• Job Title:        {job_title}")
     print(f"• Subject Line:     {subject_line}")

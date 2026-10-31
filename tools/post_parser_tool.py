@@ -12,8 +12,12 @@ email, or message dump, and automatically extracts:
 
 from __future__ import annotations
 
+import json
 import logging
+import os
 import re
+import shutil
+import subprocess
 from typing import Any, Dict, List, Optional
 
 from tools.pitch_customizer_tool import generate_tailored_pitch
@@ -372,28 +376,136 @@ def _infer_location(text: str) -> str:
         return ", ".join(locs)
     return "Lahore / Remote"
 
+def _get_agy_bin() -> Optional[str]:
+    """Finds real agy binary path for model reasoning."""
+    path = shutil.which("agy.exe") or shutil.which("agy")
+    if path:
+        return path
+    candidates = [
+        os.path.expanduser("~\\AppData\\Local\\agy\\bin\\agy.exe"),
+        "C:\\Users\\ahmad\\AppData\\Local\\agy\\bin\\agy.exe",
+        os.path.expanduser("~\\.gemini\\antigravity-cli\\bin\\agy.exe"),
+    ]
+    for c in candidates:
+        if os.path.exists(c):
+            return c
+    return None
+
+def _parse_with_antigravity_model(raw_text: str, candidate_name: str = CANDIDATE_NAME) -> Optional[Dict[str, Any]]:
+    """Uses the authenticated Google Antigravity Gemini 3.8 Flash session to reason and extract job intelligence."""
+    agy_bin = _get_agy_bin()
+    if not agy_bin:
+        return None
+
+    prompt = f"""You are the Antigravity Executive Outreach Intelligence Engine for Ahmad Faraz (dev.ahmadfaraz24@gmail.com).
+Your job is to read this raw hiring post, reason carefully, and extract structured job intelligence according to strict rules:
+
+CRITICAL RULES:
+1. STRICT ZERO EMOJIS: Never include emojis in company, job title, subject line, or pitch.
+2. CANONICAL JOB TITLE: Extract the pure, corporate job title (e.g. 'DevOps Intern', 'Software Engineering Intern', 'Associate Python Engineer'). NEVER include marketing adjectives (e.g. 'Enthusiastic and Motivated'), bullet numbers ('1️⃣'), or contract duration ('2-3 month paid').
+3. RECRUITER SUBJECT LINE: If the post specifies a subject template like 'Subject: SE Intern – [Your Name]', replace placeholders with '{candidate_name}'. If no subject is specified, format as: 'Application for [Job Title] - {candidate_name}'.
+4. AUTHENTIC TAILORED PITCH: Ahmad Faraz is a BS Software Engineering graduate. He has practical hands-on experience in Python (Django, FastAPI), React, PostgreSQL, MongoDB, Playwright/Selenium test automation, Git/Linux, and modern AI coding tools (Cursor and Claude Code). Tailor the middle pitch paragraph (2-3 sentences, <100 words) specifically to the technologies mentioned in the post. Keep tone humble, authentic, direct, and organic.
+
+Raw Post Text:
+\"\"\"
+{raw_text}
+\"\"\"
+
+Respond with ONLY a pure JSON object in this exact schema (no markdown fences, no conversational text, no tool calls):
+{{
+  "company": "Company Name",
+  "job_title": "Clean Canonical Job Title",
+  "recruiter_email": "recruiter@example.com",
+  "location": "City or Remote",
+  "subject_line": "Subject Line with {candidate_name} and ZERO emojis",
+  "tailored_pitch": "Humble, tailored middle pitch paragraph with ZERO emojis"
+}}
+"""
+
+    cmd = [
+        agy_bin,
+        "-p", prompt,
+        "--output-format", "json",
+        "--disable-slash-commands",
+        "--dangerously-skip-permissions"
+    ]
+
+    try:
+        proc = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8", timeout=25)
+        if proc.returncode != 0:
+            logger.warning(f"Antigravity CLI returned code {proc.returncode}: {proc.stderr}")
+            return None
+
+        data = json.loads(proc.stdout.strip())
+        response_text = data.get("response", "").strip()
+
+        # Clean any accidental markdown fences
+        if "```json" in response_text:
+            response_text = response_text.split("```json")[1].split("```")[0].strip()
+        elif "```" in response_text:
+            response_text = response_text.split("```")[1].split("```")[0].strip()
+
+        parsed_json = json.loads(response_text)
+
+        # Validate required fields
+        if not parsed_json.get("company") or not parsed_json.get("job_title"):
+            return None
+
+        # Sanitize zero-emojis
+        company = " ".join(strip_all_emojis(parsed_json.get("company", "")).split())
+        job_title = " ".join(strip_all_emojis(parsed_json.get("job_title", "")).split())
+        recruiter_email = strip_all_emojis(parsed_json.get("recruiter_email", "")).strip().lower()
+        location = " ".join(strip_all_emojis(parsed_json.get("location", "Pakistan / Remote")).split())
+        subject_line = " ".join(strip_all_emojis(parsed_json.get("subject_line", f"Application for {job_title} - {candidate_name}")).split())
+        pitch = strip_all_emojis(parsed_json.get("tailored_pitch", "")).strip()
+
+        # Discovered emails fallback
+        emails = _extract_emails(raw_text)
+        if not recruiter_email and emails:
+            recruiter_email = emails[0]
+        elif recruiter_email and recruiter_email not in emails:
+            emails.insert(0, recruiter_email)
+
+        return {
+            "status": "SUCCESS",
+            "company": company,
+            "job_title": job_title,
+            "subject_line": subject_line,
+            "recruiter_email": recruiter_email,
+            "discovered_emails": emails,
+            "location": location,
+            "tailored_pitch": pitch,
+            "model_engine": "Gemini 3.8 Flash (Antigravity Model Intelligence)",
+            "raw_text_length": len(raw_text)
+        }
+    except Exception as e:
+        logger.warning(f"Antigravity model parsing exception: {e}. Falling back to rule hierarchy.")
+        return None
+
 def parse_raw_job_post(raw_text: str, candidate_name: str = CANDIDATE_NAME) -> Dict[str, Any]:
-    """Instantly parses raw LinkedIn posts, emails, or job listings into structured data."""
+    """Parses raw LinkedIn posts, emails, or job listings into structured data using Antigravity Gemini 3.8 Flash model."""
     raw_text = raw_text.strip()
     if not raw_text:
         return {"status": "ERROR", "message": "Raw post text is empty."}
 
-    # 1. Extract email addresses
+    # 1. PRIMARY ENGINE: Antigravity Model Intelligence (Gemini 3.8 Flash via agy)
+    model_result = _parse_with_antigravity_model(raw_text, candidate_name=candidate_name)
+    if model_result and model_result.get("status") == "SUCCESS":
+        return model_result
+
+    # 2. EMERGENCY FALLBACK: Heuristic Rule Hierarchy (Guided by OUTREACH_GUIDELINES.md & EMAIL_PLAYBOOK.md)
     emails = _extract_emails(raw_text)
     primary_email = emails[0] if emails else ""
 
-    # 2. Extract company, role, location (Guided by OUTREACH_GUIDELINES.md & EMAIL_PLAYBOOK.md)
     company = " ".join(strip_all_emojis(_infer_company(raw_text, email_addr=primary_email)).split())
     job_title = " ".join(strip_all_emojis(_infer_role(raw_text)).split())
     location = " ".join(strip_all_emojis(_infer_location(raw_text)).split())
 
-    # 3. Extract recruiter-mandated subject line (e.g. 'SE Intern – Ahmad Faraz')
     subject_line = extract_requested_subject(raw_text, candidate_name=candidate_name, fallback_role=job_title)
     if not subject_line:
         subject_line = f"Application for {job_title} - {candidate_name}"
     subject_line = " ".join(strip_all_emojis(subject_line).split())
 
-    # 4. Generate dynamic tailored pitch based on extracted parameters & actual tech stack
     pitch = strip_all_emojis(generate_tailored_pitch(
         job_title=job_title,
         company=company,
@@ -409,5 +521,6 @@ def parse_raw_job_post(raw_text: str, candidate_name: str = CANDIDATE_NAME) -> D
         "discovered_emails": emails,
         "location": location,
         "tailored_pitch": pitch,
+        "model_engine": "Emergency Rule Fallback",
         "raw_text_length": len(raw_text)
     }
