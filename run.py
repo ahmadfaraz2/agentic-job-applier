@@ -36,7 +36,8 @@ from tools.job_scanner_tool import (
     update_pasted_job_status
 )
 from tools.web_search_tool import execute_prompt_search, search_web_jobs
-from tools.excel_tracker_tool import get_excel_stats, EXCEL_FILE
+from tools.excel_tracker_tool import get_excel_stats, is_already_applied, EXCEL_FILE
+from tools.post_parser_tool import parse_raw_job_post
 from tools.inbox_listener_tool import check_inbound_recruiter_replies
 from tools.discord_alert_tool import send_discord_notification
 from workflow import run_unified_workflow, start_periodic_daemon
@@ -51,49 +52,118 @@ def print_banner():
     """
     print(banner)
 
-def handle_paste_interactive(to_email_arg: str = ""):
-    """Interactive wizard to paste a job and either apply immediately or queue it."""
-    print("\n" + "=" * 60)
-    print("  📋 Interactive Job Paste Wizard")
-    print("=" * 60)
+def handle_paste_smart(to_email_arg: str = "", raw_post_text: str = ""):
+    """Smart raw post parser and application dispatcher.
+    Accepts full unformatted text from LinkedIn or any source, automatically extracts
+    company, title, recruiter email, generates tailored pitch, checks deduplication,
+    and dispatches with Ahmad_Faraz_CV.pdf attached.
+    """
+    raw_text = raw_post_text.strip()
 
-    company = input("• Company Name: ").strip()
-    job_title = input("• Job Title: ").strip()
-    
-    to_email = to_email_arg.strip()
-    if not to_email:
-        to_email = input("• Recruiter / Application Email: ").strip()
+    if not raw_text:
+        # Check if text is piped via stdin
+        if not sys.stdin.isatty():
+            raw_text = sys.stdin.read().strip()
 
-    source = input("• Source (e.g. LinkedIn, ROZEE.pk, Website) [Default: Manual Paste]: ").strip() or "Manual Paste"
-    url = input("• Job / Company URL (optional): ").strip()
-    print("• Notes / Key Requirements / Tech Stack (Press Enter twice when done):")
-    notes_lines = []
-    while True:
-        try:
-            line = input()
-            if not line and notes_lines and not notes_lines[-1]:
+    if not raw_text:
+        print("\n" + "=" * 65)
+        print("  🚀 SMART RAW JOB POST PARSER (Powered by Antigravity)")
+        print("=" * 65)
+        print("Paste the complete raw LinkedIn post or hiring announcement below.")
+        print("(Press Enter, then type 'EOF' or press Enter twice on empty line to finish):")
+        print("-" * 65)
+
+        lines = []
+        empty_count = 0
+        while True:
+            try:
+                line = input()
+                if line.strip().upper() == "EOF":
+                    break
+                if line.strip() == "":
+                    empty_count += 1
+                    if empty_count >= 2 and lines:
+                        break
+                else:
+                    empty_count = 0
+                lines.append(line)
+            except (EOFError, KeyboardInterrupt):
                 break
-            notes_lines.append(line)
-            if len(notes_lines) >= 2 and notes_lines[-1] == "" and notes_lines[-2] == "":
-                break
-        except (EOFError, KeyboardInterrupt):
-            break
-    notes = "\n".join(notes_lines).strip()
+        raw_text = "\n".join(lines).strip()
 
-    if not company or not job_title or not to_email:
-        print("\n[!] Error: Company, Job Title, and Recruiter Email are required.")
+    if not raw_text:
+        print("\n[!] Error: No post text provided.")
         return
 
-    print("\n" + "-" * 60)
-    action = input("Send application email NOW with CV attached? [y/N/q=Queue only]: ").strip().lower()
+    print("\n[Antigravity Engine] Analyzing post and extracting intelligence...")
+    parsed = parse_raw_job_post(raw_text)
 
-    if action == "y":
-        print(f"\n[Application Engine] Dispatching application to {to_email} with Ahmad_Faraz_CV.pdf...")
+    if parsed.get("status") == "ERROR":
+        print(f"[!] Error: {parsed.get('message')}")
+        return
+
+    company = parsed.get("company", "Company")
+    job_title = parsed.get("job_title", "Software Engineer")
+    location = parsed.get("location", "Pakistan / Remote")
+    tailored_pitch = parsed.get("tailored_pitch", "")
+    discovered_emails = parsed.get("discovered_emails", [])
+
+    # Recruiter email determination
+    to_email = to_email_arg.strip()
+    if not to_email and discovered_emails:
+        to_email = discovered_emails[0]
+    elif not to_email:
+        to_email = input("\n• Recruiter email not found in post. Enter contact email (or press Enter to skip): ").strip()
+
+    if not to_email:
+        print("[!] No recipient email provided. Aborting application.")
+        return
+
+    # Check deduplication
+    already_applied = is_already_applied(recipient_email=to_email, company=company, job_title=job_title)
+
+    cv_path = Config.DATA_DIR / "Ahmad_Faraz_CV.pdf"
+    cv_status = "Available (Attached)" if cv_path.exists() else "Missing!"
+
+    print("\n" + "=" * 65)
+    print("  🎯 Extracted Job Intelligence")
+    print("=" * 65)
+    print(f"• Company:         {company}")
+    print(f"• Job Title:       {job_title}")
+    print(f"• Recruiter Email: {to_email}")
+    if len(discovered_emails) > 1:
+        print(f"• Other Emails:    {', '.join(discovered_emails[1:])}")
+    print(f"• Location:        {location}")
+    print(f"• CV Attachment:   Ahmad_Faraz_CV.pdf ({cv_status})")
+    print(f"• Duplicate Guard: {'⚠️ ALREADY APPLIED IN TRACKER' if already_applied else '✅ Clean (Never applied before)'}")
+    print("-" * 65)
+    print("[Tailored Email Outreach Preview]")
+    print("-" * 65)
+    print(f"To: {to_email}")
+    print(f"Subject: Application for {job_title} - Ahmad Faraz\n")
+    print(f"Hello {company} team,\n")
+    print(tailored_pitch)
+    print("\nI'm based in Sargodha and open to discussing remote work or relocation if needed. I've attached my CV for your review and would be glad to talk about how I can contribute if my background is a match.\n")
+    print("Regards,\nAhmad Faraz\n+92 307 5709318\nLinkedIn: https://www.linkedin.com/in/ahmad-faraz-/\nGitHub: https://github.com/ahmadfaraz2")
+    print("=" * 65)
+
+    if already_applied:
+        force_prompt = input("\n⚠️ Duplicate detected. Do you want to FORCE send anyway? [y/N]: ").strip().lower()
+        if force_prompt != "y":
+            print("Application skipped to prevent duplicate emailing.")
+            return
+
+    action = input("\nSend application email NOW? [Y/n/q=Queue/e=Edit]: ").strip().lower()
+
+    if action in ("", "y", "yes"):
+        print(f"\n[Application Engine] Dispatching organic application to {to_email} with Ahmad_Faraz_CV.pdf...")
         result = send_cv_application_email(
             to_email=to_email,
             job_title=job_title,
             company=company,
-            source_platform=source
+            custom_paragraph=tailored_pitch,
+            source_platform="LinkedIn Post",
+            force=already_applied
         )
         print(f"Result: {result}")
         record_job_decision(
@@ -102,18 +172,36 @@ def handle_paste_interactive(to_email_arg: str = ""):
             company=company,
             action="APPLIED",
             match_score=95,
-            notes=f"Applied directly via CLI paste. Source: {source}"
+            notes=f"Applied via smart raw post paste to {to_email}"
         )
-    else:
+    elif action == "q":
         status_msg = add_pasted_job(
             to_email=to_email,
             job_title=job_title,
             company=company,
-            source=source,
-            notes=notes,
-            url=url
+            source="LinkedIn Post (Smart Parsed)",
+            notes=tailored_pitch,
+            url=""
         )
-        print(f"\n[✓] {status_msg}")
+        print(f"\n[✓] Queued: {status_msg}")
+    elif action == "e":
+        print("\n--- Quick Edit Mode ---")
+        new_comp = input(f"• Company [{company}]: ").strip() or company
+        new_title = input(f"• Job Title [{job_title}]: ").strip() or job_title
+        new_email = input(f"• Recruiter Email [{to_email}]: ").strip() or to_email
+        confirm = input(f"Send to {new_email} for {new_title} at {new_comp}? [Y/n]: ").strip().lower()
+        if confirm in ("", "y", "yes"):
+            result = send_cv_application_email(
+                to_email=new_email,
+                job_title=new_title,
+                company=new_comp,
+                custom_paragraph=tailored_pitch,
+                source_platform="LinkedIn Post",
+                force=True
+            )
+            print(f"Result: {result}")
+    else:
+        print("Application aborted by user.")
 
 def handle_apply_queue():
     """Iterates through all pending jobs in data/pasted_jobs.json and sends applications."""
@@ -280,7 +368,19 @@ def main():
     group.add_argument(
         "--paste",
         action="store_true",
-        help="Interactive CLI wizard to paste a job and send application or add to queue.",
+        help="Paste a complete raw LinkedIn post to automatically extract details, draft pitch, and dispatch.",
+    )
+    group.add_argument(
+        "--post",
+        type=str,
+        metavar="TEXT",
+        help="Pass raw LinkedIn/hiring post text directly to automatically extract, draft, and dispatch.",
+    )
+    group.add_argument(
+        "--post-file",
+        type=str,
+        metavar="FILEPATH",
+        help="Read raw LinkedIn post from a file to automatically extract, draft, and dispatch.",
     )
     group.add_argument(
         "--apply-queue",
@@ -403,8 +503,21 @@ def main():
         print(f"Result: {result}\n")
         return
 
+    if args.post:
+        handle_paste_smart(to_email_arg=args.to, raw_post_text=args.post)
+        return
+
+    if args.post_file:
+        p = Path(args.post_file)
+        if not p.exists():
+            print(f"[!] Error: File '{args.post_file}' does not exist.")
+            return
+        content = p.read_text(encoding="utf-8", errors="replace")
+        handle_paste_smart(to_email_arg=args.to, raw_post_text=content)
+        return
+
     if args.paste:
-        handle_paste_interactive(to_email_arg=args.to)
+        handle_paste_smart(to_email_arg=args.to)
         return
 
     if args.apply_queue:

@@ -11,6 +11,7 @@ from .excel_tracker_tool import record_excel_application, is_already_applied, ge
 from .pitch_customizer_tool import generate_tailored_pitch
 from .discord_alert_tool import send_discord_notification, notify_application_sent, notify_recruiter_reply
 from .inbox_listener_tool import check_inbound_recruiter_replies
+from .post_parser_tool import parse_raw_job_post
 
 __all__ = [
     "send_smtp_email",
@@ -37,6 +38,7 @@ __all__ = [
     "notify_application_sent",
     "notify_recruiter_reply",
     "check_inbound_recruiter_replies",
+    "parse_raw_job_post",
     "EXCEL_FILE",
     "CSV_FILE",
 ]
