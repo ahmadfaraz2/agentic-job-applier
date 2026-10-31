@@ -209,10 +209,15 @@ async def on_message(message: discord.Message):
     if message.author.bot:
         return
 
+    logger.info(
+        f"Incoming message from {message.author} (ID: {message.author.id}) in {type(message.channel).__name__} "
+        f"(guild={message.guild}): content='{message.content[:60]}', attachments={len(message.attachments)}"
+    )
+
     # Check authorization
     if not is_authorized_user(message.author):
         logger.warning(f"Blocked unauthorized message from {message.author} (ID: {message.author.id})")
-        if isinstance(message.channel, discord.DMChannel):
+        if message.guild is None or isinstance(message.channel, discord.DMChannel):
             await message.channel.send("⛔ **Unauthorized:** This bot is exclusively configured for Ahmad Faraz.")
         return
 
@@ -221,18 +226,16 @@ async def on_message(message: discord.Message):
         await bot.process_commands(message)
         return
 
-    # If message is received in DMs, treat it as a raw job post or URL
-    if isinstance(message.channel, discord.DMChannel):
+    # If message is received in DMs, treat it as a raw job post, screenshot, or URL
+    if message.guild is None or isinstance(message.channel, discord.DMChannel):
         await handle_incoming_job_post(message)
         return
 
     # If in a guild channel, allow bot if explicitly mentioned
     if bot.user in message.mentions:
-        # Strip mention from content
         clean_text = message.content.replace(f"<@{bot.user.id}>", "").strip()
-        if clean_text:
-            message.content = clean_text
-            await handle_incoming_job_post(message)
+        message.content = clean_text
+        await handle_incoming_job_post(message)
 
 # ---------------------------------------------------------------------------
 # Raw Job Post Ingestion & Model Analysis
@@ -243,20 +246,19 @@ async def handle_incoming_job_post(message: discord.Message):
     raw_text = message.content.strip()
 
     # Detect screenshot or image attachments
-    image_attachment = None
+    image_attachments = []
     if message.attachments:
         for att in message.attachments:
             if (att.content_type and att.content_type.startswith("image/")) or any(
                 att.filename.lower().endswith(ext) for ext in (".png", ".jpg", ".jpeg", ".webp", ".bmp")
             ):
-                image_attachment = att
-                break
+                image_attachments.append(att)
 
-    if not raw_text and not image_attachment:
+    if not raw_text and not image_attachments:
         return
 
     # Friendly greeting for short chatter if no image attached
-    if not image_attachment and len(raw_text) < 20 and not re.search(r'https?://', raw_text) and not "@" in raw_text:
+    if not image_attachments and len(raw_text) < 20 and not re.search(r'https?://', raw_text) and not "@" in raw_text:
         await message.channel.send(
             "👋 **Hi Ahmad!** You can apply to jobs in two simple ways:\n"
             "1. 📸 **Upload a Screenshot** of any LinkedIn hiring post directly from your phone!\n"
@@ -265,31 +267,42 @@ async def handle_incoming_job_post(message: discord.Message):
         )
         return
 
+    status_msg = None
+
     # Visual typing indicator while model thinks
     async with message.channel.typing():
         loop = asyncio.get_running_loop()
 
-        # Handle Screenshot / Image Attachment via Native OCR
-        if image_attachment:
-            status_msg = await message.channel.send("📸 **Screenshot received!** Extracting text via native OCR...")
-            img_bytes = await image_attachment.read()
-            ocr_text = await extract_text_from_image_bytes(img_bytes)
+        # Handle Screenshot / Image Attachments via Native OCR
+        if image_attachments:
+            img_count_str = f"{len(image_attachments)} image(s)" if len(image_attachments) > 1 else "image"
+            status_msg = await message.reply(f"⏳ **{img_count_str.capitalize()} received! Processing screenshot, please wait a moment...**")
 
-            if not ocr_text:
+            ocr_texts = []
+            for idx, att in enumerate(image_attachments, 1):
+                if len(image_attachments) > 1:
+                    await status_msg.edit(content=f"⏳ **Processing image {idx} of {len(image_attachments)} via native OCR...**")
+                img_bytes = await att.read()
+                extracted = await extract_text_from_image_bytes(img_bytes)
+                if extracted and extracted.strip():
+                    ocr_texts.append(extracted.strip())
+
+            if not ocr_texts:
                 await status_msg.edit(
                     content=(
-                        "⚠️ **Could not detect readable text in the attached screenshot.**\n"
-                        "Please ensure the image contains clear, visible text and try again."
+                        "⚠️ **Processing complete, but could not detect readable text in the image.**\n"
+                        "Please ensure the screenshot is clear and contains visible text, or paste the post text directly."
                     )
                 )
                 return
 
+            combined_ocr = "\n\n".join(ocr_texts)
             if raw_text:
-                raw_text = f"{raw_text}\n\n{ocr_text}"
+                raw_text = f"{raw_text}\n\n{combined_ocr}"
             else:
-                raw_text = ocr_text
+                raw_text = combined_ocr
 
-            await status_msg.edit(content="🧠 **Text extracted successfully!** Analyzing with Gemini 3.8 Flash...")
+            await status_msg.edit(content="🧠 **Text extracted! Formulating application with Gemini 3.8 Flash...**")
 
         # Check if input is a standalone URL
         url_match = re.match(r'^(https?://[^\s]+)$', raw_text.strip())
@@ -352,7 +365,11 @@ async def handle_incoming_job_post(message: discord.Message):
             no_email_embed.add_field(name="🏢 Detected Company", value=company or "Unknown", inline=True)
             no_email_embed.add_field(name="💼 Detected Role", value=job_title or "Unknown", inline=True)
             no_email_embed.set_footer(text=f"Engine: {model_engine}")
-            await message.channel.send(embed=no_email_embed)
+
+            if status_msg:
+                await status_msg.edit(content="⚠️ **Processing complete.** (Could not detect recruiter email)", embed=no_email_embed)
+            else:
+                await message.channel.send(embed=no_email_embed)
             return
 
         # Check deduplication against Excel tracker
@@ -409,8 +426,12 @@ async def handle_incoming_job_post(message: discord.Message):
             author_id=message.author.id
         )
 
-        sent_msg = await message.channel.send(embed=embed, view=view)
-        view.message = sent_msg
+        if status_msg:
+            await status_msg.edit(content="✅ **Done! Here is your application preview:**", embed=embed, view=view)
+            view.message = status_msg
+        else:
+            sent_msg = await message.channel.send(embed=embed, view=view)
+            view.message = sent_msg
 
 # ---------------------------------------------------------------------------
 # Bot Commands: !stats, !check, !history, !help
