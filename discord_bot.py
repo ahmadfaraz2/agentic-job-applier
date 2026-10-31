@@ -32,6 +32,7 @@ from tools.post_parser_tool import parse_raw_job_post, strip_all_emojis
 from tools.email_tool import send_cv_application_email
 from tools.inbox_listener_tool import check_inbound_recruiter_replies
 from tools.browser_tool import extract_job_and_email_from_url
+from tools.ocr_tool import extract_text_from_image_bytes
 
 # Configure logging
 logging.basicConfig(
@@ -238,17 +239,28 @@ async def on_message(message: discord.Message):
 # ---------------------------------------------------------------------------
 
 async def handle_incoming_job_post(message: discord.Message):
-    """Parses raw post text, performs duplicate detection, and prompts with interactive buttons."""
+    """Parses raw post text, performs OCR on screenshot attachments, checks duplicates, and prompts with interactive buttons."""
     raw_text = message.content.strip()
 
-    if not raw_text:
+    # Detect screenshot or image attachments
+    image_attachment = None
+    if message.attachments:
+        for att in message.attachments:
+            if (att.content_type and att.content_type.startswith("image/")) or any(
+                att.filename.lower().endswith(ext) for ext in (".png", ".jpg", ".jpeg", ".webp", ".bmp")
+            ):
+                image_attachment = att
+                break
+
+    if not raw_text and not image_attachment:
         return
 
-    # Friendly greeting for short chatter
-    if len(raw_text) < 20 and not re.search(r'https?://', raw_text) and not "@" in raw_text:
+    # Friendly greeting for short chatter if no image attached
+    if not image_attachment and len(raw_text) < 20 and not re.search(r'https?://', raw_text) and not "@" in raw_text:
         await message.channel.send(
-            "👋 **Hi Ahmad!** Paste any raw LinkedIn post, hiring announcement, or job URL here, "
-            "and I will extract the details, generate a tailored pitch, and present a 1-click apply preview.\n\n"
+            "👋 **Hi Ahmad!** You can apply to jobs in two simple ways:\n"
+            "1. 📸 **Upload a Screenshot** of any LinkedIn hiring post directly from your phone!\n"
+            "2. 📝 **Paste raw text or a job URL**.\n\n"
             "Type `!help` to view available commands."
         )
         return
@@ -257,10 +269,52 @@ async def handle_incoming_job_post(message: discord.Message):
     async with message.channel.typing():
         loop = asyncio.get_running_loop()
 
+        # Handle Screenshot / Image Attachment via Native OCR
+        if image_attachment:
+            status_msg = await message.channel.send("📸 **Screenshot received!** Extracting text via native OCR...")
+            img_bytes = await image_attachment.read()
+            ocr_text = await extract_text_from_image_bytes(img_bytes)
+
+            if not ocr_text:
+                await status_msg.edit(
+                    content=(
+                        "⚠️ **Could not detect readable text in the attached screenshot.**\n"
+                        "Please ensure the image contains clear, visible text and try again."
+                    )
+                )
+                return
+
+            if raw_text:
+                raw_text = f"{raw_text}\n\n{ocr_text}"
+            else:
+                raw_text = ocr_text
+
+            await status_msg.edit(content="🧠 **Text extracted successfully!** Analyzing with Gemini 3.8 Flash...")
+
         # Check if input is a standalone URL
         url_match = re.match(r'^(https?://[^\s]+)$', raw_text.strip())
         if url_match:
             job_url = url_match.group(1)
+
+            # Check if this is a LinkedIn feed/post link that requires login
+            is_linkedin_feed = bool(
+                re.search(r'linkedin\.com/(posts|feed/update|pulse)/', job_url, re.IGNORECASE)
+                or "lnkd.in/" in job_url
+            )
+            if is_linkedin_feed:
+                feed_embed = discord.Embed(
+                    title="🔒 LinkedIn Login Wall Detected",
+                    description=(
+                        "LinkedIn blocks external automated tools from reading private feed posts via link (`linkedin.com/posts/...`).\n\n"
+                        "💡 **The Fast 1-Second Solution on Mobile:**\n"
+                        "Simply take a **screenshot** of the post on your phone and **send the picture directly to this chat**!\n\n"
+                        "I will read the screenshot instantly via native OCR and formulate your application email with your CV attached."
+                    ),
+                    color=0x3B82F6
+                )
+                await message.channel.send(embed=feed_embed)
+                return
+
             await message.channel.send(f"🌐 Browsing job URL: `<{job_url}>`...")
             extracted = await loop.run_in_executor(None, extract_job_and_email_from_url, job_url)
             if extracted.get("status") == "SUCCESS" and extracted.get("summary"):
@@ -476,9 +530,11 @@ async def help_command(ctx: commands.Context):
         title="🚀 Ahmad Faraz — Antigravity Job Outreach Bot Guide",
         description=(
             "Welcome! This bot automates your job application workflow directly from Discord.\n\n"
-            "### 📥 How to Apply to a Job:\n"
-            "Simply **copy and paste any raw LinkedIn post, hiring announcement, or job link** directly into this DM!\n"
-            "1. **Antigravity Model Analysis:** Gemini 3.8 Flash extracts Company, Role, Recruiter Email, and exact Subject requirements.\n"
+            "### 📥 2 Easy Ways to Apply:\n"
+            "• 📸 **Mobile Screenshots (Easiest!):** Take a screenshot of ANY hiring post on your phone and upload the picture directly to this chat. Native OCR extracts the text instantly!\n"
+            "• 📝 **Copy & Paste Text:** Paste unformatted post text, hiring announcements, or job descriptions directly.\n\n"
+            "### ⚡ What Happens Next:\n"
+            "1. **Gemini 3.8 Flash Analysis:** Extracts Company, Role, Recruiter Email, and exact Subject requirements.\n"
             "2. **Interactive Preview:** The bot sends an embed with all parsed information.\n"
             "3. **1-Click Dispatch:** Click **`[🚀 Send Application Email]`** to send your cold email with `Ahmad_Faraz_CV.pdf` attached.\n\n"
             "### 🛠️ Available Commands:\n"
