@@ -22,6 +22,27 @@ logger = logging.getLogger(__name__)
 
 CANDIDATE_NAME = "Ahmad Faraz"
 
+# Strict Zero-Emoji Filter for professional cold outreach (OUTREACH_GUIDELINES.md)
+EMOJI_PATTERN = re.compile(
+    r'['
+    r'\U00010000-\U0010ffff'  # Supplemental Symbols, Pictographs, Emoticons
+    r'\u2600-\u27ff'          # Miscellaneous Symbols & Dingbats
+    r'\u2300-\u23ff'          # Miscellaneous Technical
+    r'\u2b50-\u2b55'          # Stars
+    r'\u200d'                 # Zero-width joiner
+    r'\ufe0e\ufe0f'           # Variation selectors
+    r'\u20e3'                 # Combining enclosing keycap
+    r']+',
+    flags=re.UNICODE
+)
+
+def strip_all_emojis(text: str) -> str:
+    """Strictly removes all emojis, dingbats, pictographs, and keycaps from text."""
+    if not text:
+        return ""
+    cleaned = EMOJI_PATTERN.sub('', text)
+    return " ".join(cleaned.split())
+
 EMAIL_REGEX = re.compile(
     r'[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+',
     re.IGNORECASE
@@ -338,22 +359,23 @@ def parse_raw_job_post(raw_text: str, candidate_name: str = CANDIDATE_NAME) -> D
     emails = _extract_emails(raw_text)
     primary_email = emails[0] if emails else ""
 
-    # 2. Extract company, role, location
-    company = _infer_company(raw_text, email_addr=primary_email)
-    job_title = _infer_role(raw_text)
-    location = _infer_location(raw_text)
+    # 2. Extract company, role, location (Guided by OUTREACH_GUIDELINES.md)
+    company = strip_all_emojis(_infer_company(raw_text, email_addr=primary_email))
+    job_title = strip_all_emojis(_infer_role(raw_text))
+    location = strip_all_emojis(_infer_location(raw_text))
 
     # 3. Extract recruiter-mandated subject line (e.g. 'SE Intern – Ahmad Faraz')
     subject_line = extract_requested_subject(raw_text, candidate_name=candidate_name, fallback_role=job_title)
     if not subject_line:
         subject_line = f"Application for {job_title} - {candidate_name}"
+    subject_line = strip_all_emojis(subject_line)
 
     # 4. Generate dynamic tailored pitch based on extracted parameters & actual tech stack
-    pitch = generate_tailored_pitch(
+    pitch = strip_all_emojis(generate_tailored_pitch(
         job_title=job_title,
         company=company,
         job_description=raw_text
-    )
+    ))
 
     return {
         "status": "SUCCESS",

@@ -10,6 +10,26 @@ from __future__ import annotations
 import re
 from typing import List, Optional
 
+# Strict Zero-Emoji Filter for professional cold outreach
+EMOJI_PATTERN = re.compile(
+    r'['
+    r'\U00010000-\U0010ffff'  # Supplemental Symbols, Pictographs, Emoticons
+    r'\u2600-\u27ff'          # Miscellaneous Symbols & Dingbats
+    r'\u2300-\u23ff'          # Miscellaneous Technical
+    r'\u2b50-\u2b55'          # Stars
+    r'\u200d'                 # Zero-width joiner
+    r'\ufe0e\ufe0f'           # Variation selectors
+    r'\u20e3'                 # Combining enclosing keycap
+    r']+',
+    flags=re.UNICODE
+)
+
+def strip_all_emojis(text: str) -> str:
+    """Strictly removes all emojis, dingbats, pictographs, and keycaps."""
+    if not text:
+        return ""
+    return EMOJI_PATTERN.sub('', text)
+
 def generate_tailored_pitch(
     job_title: str,
     company: str,
@@ -49,12 +69,13 @@ def generate_tailored_pitch(
 
     # 1. Pure QA / Testing Track
     if has_qa and not has_django and not has_node and not has_ai_tools:
-        return (
+        qa_pitch = (
             f"{opening} I am a Software Engineering graduate with hands-on experience in Python scripting, "
             f"test automation (Playwright and Selenium), REST API testing, and Git. I have a meticulous eye for "
             f"debugging, discovering edge cases, and ensuring software reliability, and I would love to contribute "
             f"actively to {company}'s quality assurance."
         )
+        return strip_all_emojis(qa_pitch).strip()
 
     # 2. Dynamic Tech Stack Clause
     tech_skills: List[str] = []
@@ -108,4 +129,4 @@ def generate_tailored_pitch(
         f"{skills_joined}{db_str}{ai_tool_str}.{closing_str}"
     )
 
-    return pitch
+    return strip_all_emojis(pitch).strip()

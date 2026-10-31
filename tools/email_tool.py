@@ -9,6 +9,7 @@ from __future__ import annotations
 import logging
 import mimetypes
 import os
+import re
 import smtplib
 from email.message import EmailMessage
 from email.utils import formataddr
@@ -21,6 +22,27 @@ from tools.pitch_customizer_tool import generate_tailored_pitch
 from tools.discord_alert_tool import notify_application_sent
 
 logger = logging.getLogger(__name__)
+
+# Strict Zero-Emoji Filter for professional cold outreach
+EMOJI_PATTERN = re.compile(
+    r'['
+    r'\U00010000-\U0010ffff'  # Supplemental Symbols, Pictographs, Emoticons
+    r'\u2600-\u27ff'          # Miscellaneous Symbols & Dingbats
+    r'\u2300-\u23ff'          # Miscellaneous Technical
+    r'\u2b50-\u2b55'          # Stars
+    r'\u200d'                 # Zero-width joiner
+    r'\ufe0e\ufe0f'           # Variation selectors
+    r'\u20e3'                 # Combining enclosing keycap
+    r']+',
+    flags=re.UNICODE
+)
+
+def strip_all_emojis(text: str) -> str:
+    """Strictly strips all emojis, pictographs, dingbats, and keycaps from text."""
+    if not text:
+        return ""
+    cleaned = EMOJI_PATTERN.sub('', text)
+    return cleaned
 
 # Default CV path
 DEFAULT_CV_PATH = Config.DATA_DIR / "Ahmad_Faraz_CV.pdf"
@@ -192,6 +214,11 @@ def send_cv_application_email(
     else:
         subject = f"Application for {job_title} - Ahmad Faraz"
 
+    # Enforce strict zero-emoji mandate (OUTREACH_GUIDELINES.md)
+    subject = " ".join(strip_all_emojis(subject).split())
+    company = " ".join(strip_all_emojis(company).split())
+    job_title = " ".join(strip_all_emojis(job_title).split())
+
     # Dynamic tailored pitch if custom_paragraph is not supplied
     if not custom_paragraph:
         custom_paragraph = generate_tailored_pitch(
@@ -199,6 +226,8 @@ def send_cv_application_email(
             company=company,
             job_description=job_description
         )
+
+    custom_paragraph = strip_all_emojis(custom_paragraph).strip()
 
     body_text = f"""Hello {company} team,
 

@@ -127,19 +127,20 @@ def handle_paste_smart(to_email_arg: str = "", raw_post_text: str = ""):
     cv_status = "Available (Attached)" if cv_path.exists() else "Missing!"
 
     print("\n" + "=" * 65)
-    print("  🎯 Extracted Job Intelligence")
+    print("  [+] Extracted Job Intelligence (OUTREACH_GUIDELINES.md Active)")
     print("=" * 65)
-    print(f"• Company:         {company}")
-    print(f"• Job Title:       {job_title}")
-    print(f"• Subject Line:    {subject_line}")
-    print(f"• Recruiter Email: {to_email}")
+    print(f"• Company:          {company}")
+    print(f"• Job Title:        {job_title}")
+    print(f"• Subject Line:     {subject_line}")
+    print(f"• Recruiter Email:  {to_email}")
     if len(discovered_emails) > 1:
-        print(f"• Other Emails:    {', '.join(discovered_emails[1:])}")
-    print(f"• Location:        {location}")
-    print(f"• CV Attachment:   Ahmad_Faraz_CV.pdf ({cv_status})")
-    print(f"• Duplicate Guard: {'⚠️ ALREADY APPLIED IN TRACKER' if already_applied else '✅ Clean (Never applied before)'}")
+        print(f"• Other Emails:     {', '.join(discovered_emails[1:])}")
+    print(f"• Location:         {location}")
+    print(f"• CV Attachment:    Ahmad_Faraz_CV.pdf ({cv_status})")
+    print(f"• Duplicate Guard:  {'[ALREADY APPLIED IN TRACKER]' if already_applied else '[Clean - Never applied before]'}")
+    print(f"• Zero-Emoji Rule:  Enforced (No emojis in subject, body, or headers)")
     print("-" * 65)
-    print("[Tailored Email Outreach Preview]")
+    print("[Tailored Email Outreach Preview - Pure Plain Text]")
     print("-" * 65)
     print(f"To: {to_email}")
     print(f"Subject: {subject_line}\n")
@@ -150,7 +151,7 @@ def handle_paste_smart(to_email_arg: str = "", raw_post_text: str = ""):
     print("=" * 65)
 
     if already_applied:
-        force_prompt = input("\n⚠️ Duplicate detected. Do you want to FORCE send anyway? [y/N]: ").strip().lower()
+        force_prompt = input("\n[!] Duplicate detected. Do you want to FORCE send anyway? [y/N]: ").strip().lower()
         if force_prompt != "y":
             print("Application skipped to prevent duplicate emailing.")
             return
