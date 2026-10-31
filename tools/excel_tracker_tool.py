@@ -295,3 +295,52 @@ def get_excel_stats() -> Dict[str, Any]:
     except Exception as e:
         logger.error(f"Error reading Excel stats: {e}")
         return {"total_applications": 0, "error": str(e)}
+
+def get_recent_applications(limit: int = 5) -> List[Dict[str, Any]]:
+    """Returns the last N application records from the Excel tracker (or CSV fallback)."""
+    records: List[Dict[str, Any]] = []
+
+    if EXCEL_FILE.exists():
+        try:
+            wb = openpyxl.load_workbook(EXCEL_FILE, data_only=True)
+            ws = wb.active
+            rows = list(ws.iter_rows(min_row=2, values_only=True))
+            for r in reversed(rows):
+                if r and len(r) > 6 and r[0]:
+                    records.append({
+                        "id": str(r[0] or ""),
+                        "timestamp": str(r[1] or ""),
+                        "company": str(r[2] or ""),
+                        "job_title": str(r[3] or ""),
+                        "recipient_email": str(r[4] or ""),
+                        "source": str(r[5] or ""),
+                        "status": str(r[6] or ""),
+                        "subject": str(r[8] or "") if len(r) > 8 else "",
+                    })
+                    if len(records) >= limit:
+                        break
+            return records
+        except Exception as e:
+            logger.warning(f"Error reading recent applications from Excel ({e}), falling back to CSV...")
+
+    if CSV_FILE.exists():
+        try:
+            with open(CSV_FILE, "r", encoding="utf-8") as f:
+                reader = list(csv.DictReader(f))
+                for row in reversed(reader):
+                    records.append({
+                        "id": row.get("ID", ""),
+                        "timestamp": row.get("Timestamp", ""),
+                        "company": row.get("Company", ""),
+                        "job_title": row.get("Job Title", ""),
+                        "recipient_email": row.get("Recipient Email", ""),
+                        "source": row.get("Platform / Source", ""),
+                        "status": row.get("Status", ""),
+                        "subject": row.get("Subject Line", ""),
+                    })
+                    if len(records) >= limit:
+                        break
+        except Exception as e:
+            logger.warning(f"Error reading recent applications from CSV: {e}")
+
+    return records

@@ -462,6 +462,11 @@ def main():
         help="Send a test notification to your configured Discord webhook.",
     )
     group.add_argument(
+        "--discord-bot",
+        action="store_true",
+        help="Launch the interactive Discord bot to apply to jobs by pasting posts in Discord DMs.",
+    )
+    group.add_argument(
         "--reset-db",
         action="store_true",
         help="Clear the local jobs database to re-evaluate opportunities.",
@@ -639,6 +644,19 @@ def main():
             print("[✓] Success! Check your Discord channel for the notification.\n")
         else:
             print("[!] Failed to deliver Discord webhook. Please verify the URL.\n")
+        return
+
+    if args.discord_bot:
+        from discord_bot import run_bot, start_bot_async
+        if args.daemon:
+            async def _run_combined():
+                await asyncio.gather(
+                    start_periodic_daemon(interval_seconds=args.interval),
+                    start_bot_async()
+                )
+            asyncio.run(_run_combined())
+        else:
+            run_bot()
         return
 
     if args.daemon:

@@ -1,4 +1,4 @@
-# 🚀 Ahmad Faraz — Autonomous Job Automation & Organic Outreach Engine (v1.2.3)
+# 🚀 Ahmad Faraz — Autonomous Job Automation & Organic Outreach Engine (v1.3.0)
 
 An intelligent, autonomous job hunting and direct outreach pipeline built with the **Google Antigravity SDK** (`google-antigravity`), powered by **live web search**, **HTTPX browser emulation**, and an active authenticated Google Antigravity CLI session (`agy` with Gemini 3.8 Flash) — **with ZERO Gemini API key required**.
 
@@ -98,6 +98,14 @@ Takes completely unformatted, messy text from any LinkedIn hiring post, email, o
 - Checks against [`applied_jobs_tracker.xlsx`](file:///F:/Antigravity-cli/job-automation-smtp/data/applied_jobs_tracker.xlsx) to prevent duplicate outreach.
 - Prompts for a single 1-key confirmation to dispatch (`Enter` = Yes!).
 
+### 9. Interactive Discord Bot & DM Outreach Assistant (`--discord-bot`, `discord_bot.py`)
+Paste raw LinkedIn posts directly into private Discord DMs from your phone or PC:
+- **Instant Intelligence Parsing**: Gemini 3.8 Flash extracts Company, Job Title, Recruiter Email, and exact Subject requirements.
+- **Interactive UI Preview**: Delivers a formatted embed with full details and dynamic pitch.
+- **1-Click Dispatch**: Press **`[🚀 Send Application Email]`** to send with `Ahmad_Faraz_CV.pdf` attached.
+- **DM Commands**: `!stats` (tracker summary), `!check` (inbox replies), `!history` (last 5 sent applications), `!help`.
+- See [`DISCORD_BOT_GUIDE.md`](file:///F:/Antigravity-cli/job-automation-smtp/DISCORD_BOT_GUIDE.md) for 2-minute setup instructions.
+
 ---
 
 ## 🛠️ CLI Usage & Command Reference
@@ -122,6 +130,8 @@ cd F:\Antigravity-cli\job-automation-smtp
 | `python run.py --apply-queue` | Dispatch application emails to all pending jobs in queue |
 | `python run.py --check-replies` | Scan Gmail inbox for recruiter responses, detect interviews, and update Excel & Discord |
 | `python run.py --test-discord` | Send a test notification to your configured Discord webhook |
+| `python discord_bot.py` *(or `--discord-bot`)* | Launch interactive Discord bot for DM-based post parsing & 1-click apply |
+| `python run.py --daemon --discord-bot` | Run background automated scraper daemon + Discord bot concurrently |
 | `python run.py --tracker` | View application statistics and Excel tracker file details |
 | `python run.py --test-cv` | Send a preview application email with CV attached to your inbox |
 | `python run.py --test-smtp` | Test Gmail SMTP connection and credentials |
@@ -153,6 +163,8 @@ job-automation-smtp/
 ├── .env.example                  # Template configuration file
 ├── requirements.txt              # Dependencies (google-antigravity, httpx, openpyxl, ddgs, etc.)
 ├── config.py                     # Central configuration loader
+├── discord_bot.py                # Interactive Discord DM Bot & 1-Click Apply view
+├── DISCORD_BOT_GUIDE.md          # 2-minute Discord bot setup and command guide
 ├── run.py                        # Unified CLI runner with all command flags
 ├── workflow.py                   # Antigravity SDK Agent orchestration
 ├── antigravity_cli_agent.py      # Zero-API-key bridge leveraging authenticated agy session

@@ -47,7 +47,7 @@ def _get_float(key: str, default: float) -> float:
 class Config:
     """Project-wide settings container."""
 
-    VERSION: str = "1.2.3"
+    VERSION: str = "1.3.0"
 
     # Paths
     PROJECT_ROOT: Path = PROJECT_ROOT
@@ -76,6 +76,10 @@ class Config:
     # Discord Notifications Webhook
     DISCORD_WEBHOOK_URL: str = os.getenv("DISCORD_WEBHOOK_URL", "")
 
+    # Discord Interactive Bot Configuration
+    DISCORD_BOT_TOKEN: str = os.getenv("DISCORD_BOT_TOKEN", "")
+    DISCORD_OWNER_ID: str = os.getenv("DISCORD_OWNER_ID", "")
+
     # Job Preferences
     JOB_SEARCH_QUERY: str = os.getenv("JOB_SEARCH_QUERY", "Python AI Agent Developer")
     MIN_HOURLY_RATE: float = _get_float("MIN_HOURLY_RATE", 45.0)
@@ -102,6 +106,11 @@ class Config:
     def is_gemini_configured(cls) -> bool:
         """Checks if GEMINI_API_KEY is available."""
         return bool(cls.GEMINI_API_KEY and not cls.GEMINI_API_KEY.startswith("your_"))
+
+    @classmethod
+    def is_discord_bot_configured(cls) -> bool:
+        """Checks if DISCORD_BOT_TOKEN is available."""
+        return bool(cls.DISCORD_BOT_TOKEN and not cls.DISCORD_BOT_TOKEN.startswith("your_"))
 
 # Ensure data directory exists
 Config.DATA_DIR.mkdir(parents=True, exist_ok=True)
