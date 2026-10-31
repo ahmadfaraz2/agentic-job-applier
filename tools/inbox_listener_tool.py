@@ -137,16 +137,17 @@ def check_inbound_recruiter_replies(
 
         for mid in reversed(recent_ids):
             try:
-                res, data = mail.fetch(mid, "(RFC822)")
-                if res != "OK" or not data or not data[0]:
+                # Fast header fetch to prevent socket drops
+                res, h_data = mail.fetch(mid, "(BODY[HEADER.FIELDS (FROM TO SUBJECT DATE)])")
+                if res != "OK" or not h_data or not h_data[0]:
                     continue
 
-                raw_email = data[0][1]
-                msg = email.message_from_bytes(raw_email)
+                raw_header = h_data[0][1]
+                header_msg = email.message_from_bytes(raw_header)
 
-                sender = _decode_mime_words(msg.get("From"))
-                subject = _decode_mime_words(msg.get("Subject"))
-                date_str = _decode_mime_words(msg.get("Date"))
+                sender = _decode_mime_words(header_msg.get("From"))
+                subject = _decode_mime_words(header_msg.get("Subject"))
+                date_str = _decode_mime_words(header_msg.get("Date"))
 
                 sender_lower = sender.lower()
                 subject_lower = subject.lower()
@@ -160,7 +161,17 @@ def check_inbound_recruiter_replies(
                         break
 
                 if matched_company:
-                    body = _extract_body_text(msg)
+                    # Fetch body only for matched recruiter email
+                    body = ""
+                    try:
+                        res_b, b_data = mail.fetch(mid, "(BODY.PEEK[TEXT])")
+                        if res_b == "OK" and b_data and b_data[0]:
+                            raw_b = b_data[0][1]
+                            if isinstance(raw_b, bytes):
+                                body = raw_b.decode("utf-8", errors="replace")
+                    except Exception:
+                        pass
+
                     classification = classify_recruiter_email(subject, body)
                     clean_snippet = " ".join(body.split())[:200]
 
