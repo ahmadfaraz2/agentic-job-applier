@@ -37,11 +37,10 @@ EMOJI_PATTERN = re.compile(
 )
 
 def strip_all_emojis(text: str) -> str:
-    """Strictly removes all emojis, dingbats, pictographs, and keycaps from text."""
+    """Strictly removes all emojis, dingbats, pictographs, and keycaps from text, preserving line breaks."""
     if not text:
         return ""
-    cleaned = EMOJI_PATTERN.sub('', text)
-    return " ".join(cleaned.split())
+    return EMOJI_PATTERN.sub('', text)
 
 EMAIL_REGEX = re.compile(
     r'[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+',
@@ -52,6 +51,8 @@ EMAIL_REGEX = re.compile(
 KNOWN_COMPANIES = {
     "devkiosk": "Devkiosk",
     "kavelogics": "KaveLogics",
+    "tekdex": "TekDex",
+    "tekdexinc": "TekDex",
     "systems limited": "Systems Limited",
     "systems ltd": "Systems Limited",
     "systemsltd": "Systems Limited",
@@ -99,6 +100,8 @@ KNOWN_COMPANIES = {
 DOMAIN_TO_COMPANY = {
     "devkiosk.com": "Devkiosk",
     "kavelogics.com": "KaveLogics",
+    "tekdexinc.com": "TekDex",
+    "tekdex.com": "TekDex",
     "systemsltd.com": "Systems Limited",
     "rolustech.com": "Rolustech",
     "arbisoft.com": "Arbisoft",
@@ -186,7 +189,7 @@ def _infer_company(text: str, email_addr: str = "") -> str:
             return DOMAIN_TO_COMPANY[domain]
 
     # Pattern 4: "[Company] is looking for" / "[Company] is hiring" / "[Company] is seeking"
-    comp_verb = re.search(r'([A-Z][A-Za-z0-9&.\s]{1,35}?)\s+(?:is looking for|is hiring|is seeking|announces|has openings)', text)
+    comp_verb = re.search(r'([A-Z][A-Za-z0-9&. ]{1,35}?)\s+(?:is looking for|is hiring|is seeking|announces|has openings)', text)
     if comp_verb:
         candidate = comp_verb.group(1).strip().rstrip("!.,")
         if candidate.lower() not in {"we", "our team", "the company", "team"}:
@@ -207,11 +210,24 @@ def _infer_company(text: str, email_addr: str = "") -> str:
 
     return "Company"
 
+FLUFF_PREFIX_REGEX = re.compile(
+    r'^\s*(?:enthusiastic\s+and\s+motivated|passionate\s+and\s+motivated|'
+    r'enthusiastic|motivated|passionate|talented|dedicated|energetic|'
+    r'dynamic|driven|seasoned|ambitious|experienced|fresh|seeking|'
+    r'looking\s+for\s+(?:an?\s+)?|hiring\s+(?:for\s+)?(?:an?\s+)?)\s+',
+    re.IGNORECASE
+)
+
 def _clean_role_title(title: str) -> str:
-    """Cleans role title, strips leading numbers/bullets/emojis/arrows, normalizes plurals and acronyms."""
+    """Cleans role title, strips leading numbers/bullets/emojis/arrows/fluff adjectives, normalizes plurals and acronyms."""
     # Strip leading bullets, emojis, keycaps, numbers with boxes, arrows, or dashes
+    title = strip_all_emojis(title)
     title = re.sub(r'^[\d\s\W→•\-\*\:\>]+', '', title.strip())
     title = title.rstrip(".,;:!?)'\"")
+
+    # Strip marketing and fluff adjectives (e.g. 'enthusiastic and motivated DevOps Intern' -> 'DevOps Intern')
+    while FLUFF_PREFIX_REGEX.search(title):
+        title = FLUFF_PREFIX_REGEX.sub('', title).strip()
 
     # Plural to singular normalization
     title = re.sub(r'\bInterns\b', 'Intern', title, flags=re.IGNORECASE)
@@ -221,7 +237,11 @@ def _clean_role_title(title: str) -> str:
 
     words = title.strip().split()
     formatted = []
-    acronyms = {"qa": "QA", "sqa": "SQA", "ai": "AI", "api": "API", "ml": "ML", "se": "SE", "ase": "ASE", "swe": "SWE"}
+    acronyms = {
+        "qa": "QA", "sqa": "SQA", "ai": "AI", "api": "API", "ml": "ML",
+        "se": "SE", "ase": "ASE", "swe": "SWE", "devops": "DevOps",
+        "sre": "SRE", "it": "IT", "ui": "UI", "ux": "UX", "hr": "HR"
+    }
     for w in words:
         w_clean = w.strip(".,;:!?)'\"")
         w_lower = w_clean.lower()
@@ -233,6 +253,7 @@ def _clean_role_title(title: str) -> str:
 
 def extract_requested_subject(text: str, candidate_name: str = CANDIDATE_NAME, fallback_role: str = "") -> Optional[str]:
     """Detects recruiter-mandated subject line templates and formats them with candidate name."""
+    text_clean = strip_all_emojis(text)
     patterns = [
         # Subject: SE Intern – [Your Name]
         r'(?:Subject|Subject\s*line)[^\S\r\n]*[:\-][^\S\r\n]*([^\n\r]+)',
@@ -245,7 +266,7 @@ def extract_requested_subject(text: str, candidate_name: str = CANDIDATE_NAME, f
     ]
 
     for pat in patterns:
-        m = re.search(pat, text, flags=re.IGNORECASE)
+        m = re.search(pat, text_clean, flags=re.IGNORECASE)
         if m:
             raw_sub = m.group(1).strip().strip("'\"“”‘’")
             if not raw_sub or len(raw_sub) < 3:
@@ -277,43 +298,34 @@ def extract_requested_subject(text: str, candidate_name: str = CANDIDATE_NAME, f
             # Normalize dashes and whitespace
             sub = sub.replace("–", "-").replace("—", "-")
             sub = " ".join(sub.split())
-            return sub
+            return strip_all_emojis(sub)
 
     return None
 
 def _infer_role(text: str) -> str:
-    """Extracts job title from text, avoiding duration, stipend, or contract text."""
-    # Pattern 1: Check requested subject line for role hint (e.g. "Subject: SE Intern – [Your Name]" -> "SE Intern")
-    sub_m = re.search(r'(?:Subject|Subject\s*line)[^\S\r\n]*[:\-][^\S\r\n]*([^\n\r]+)', text, flags=re.IGNORECASE)
+    """Extracts genuine job title from text using EMAIL_PLAYBOOK hierarchy."""
+    text_clean = strip_all_emojis(text)
+
+    # Priority 1: Explicit same-line label (e.g. "Position: DevOps Intern", "Role: Python Developer")
+    role_label = re.search(r'(?:Position|Role|Job\s*Title|Title)[^\S\r\n]*[:\-][^\S\r\n]*([^\n\r,]+)', text_clean, flags=re.IGNORECASE)
+    if role_label:
+        val = role_label.group(1).strip()
+        if len(val) >= 2 and len(val) < 50:
+            if not any(bad in val.lower() for bad in INVALID_ROLE_WORDS):
+                return _clean_role_title(val)
+
+    # Priority 2: Check requested subject line for role hint (e.g. "Subject: SE Intern – [Your Name]" -> "SE Intern")
+    sub_m = re.search(r'(?:Subject|Subject\s*line)[^\S\r\n]*[:\-][^\S\r\n]*([^\n\r]+)', text_clean, flags=re.IGNORECASE)
     if sub_m:
         sub_candidate = sub_m.group(1).strip()
         part_role = re.split(r'[\-\–\—\[\<\{]', sub_candidate)[0].strip()
         if len(part_role) >= 2 and len(part_role) <= 40:
             if not any(bad in part_role.lower() for bad in INVALID_ROLE_WORDS):
-                if any(k in part_role.lower() for k in ["intern", "engineer", "developer", "lead", "associate", "qa", "sqa", "architect", "trainee", "se", "ase"]):
+                if any(k in part_role.lower() for k in ["intern", "engineer", "developer", "lead", "associate", "qa", "sqa", "architect", "trainee", "se", "ase", "devops"]):
                     return _clean_role_title(part_role)
 
-    # Pattern 2: Headline / Opening announcement (e.g. "Hiring Software Engineering Interns in Lahore")
-    headline = re.search(
-        r'(?:Hiring|Urgent hiring|We are hiring|We\'re hiring|Looking for|Seeking)\s+(?:for\s+)?(?:an?\s+)?([A-Za-z\s/]{2,50}?\b(?:Engineers?|Developers?|Interns?|Specialists?|Consultants?|Architects?|Leads?|Associates?|Analysts?|Trainees?|Testers?)\b)',
-        text,
-        flags=re.IGNORECASE
-    )
-    if headline:
-        val = headline.group(1).strip()
-        if not any(bad in val.lower() for bad in INVALID_ROLE_WORDS):
-            return _clean_role_title(val)
-
-    # Pattern 3: Explicit same-line label (e.g. "Role: Python Developer", "Position: SE Intern")
-    role_label = re.search(r'(?:Role|Position|Job Title|Title|Opening|Hiring for)[^\S\r\n]*[:\-][^\S\r\n]*([^\n\r,]+)', text, flags=re.IGNORECASE)
-    if role_label:
-        val = role_label.group(1).strip()
-        if len(val) >= 3 and len(val) < 50:
-            if not any(bad in val.lower() for bad in INVALID_ROLE_WORDS):
-                return _clean_role_title(val)
-
-    # Pattern 4: Standalone line or bullet containing a role title (e.g. "1️⃣ Business Development Interns")
-    for line in text.splitlines():
+    # Priority 3: Standalone line or bullet containing a role title (e.g. "1️⃣ Business Development Interns")
+    for line in text_clean.splitlines():
         line_clean = line.strip()
         line_clean = re.sub(r'^[\d\s\W→•\-\*\:\>]+', '', line_clean).strip()
         m_line = re.search(r'\b([A-Za-z\s/]{2,45}?\b(?:Engineers?|Developers?|Interns?|Specialists?|Consultants?|Architects?|Leads?|Associates?|Analysts?|Trainees?|Testers?))\b', line_clean, flags=re.IGNORECASE)
@@ -322,8 +334,19 @@ def _infer_role(text: str) -> str:
             if len(val) >= 4 and not any(bad in val.lower() for bad in INVALID_ROLE_WORDS):
                 return _clean_role_title(val)
 
-    # Pattern 5: Check standard roles sorted by length
-    text_lower = text.lower()
+    # Priority 4: Headline / Opening announcement (e.g. "TekDex is Hiring | DevOps Interns")
+    headline = re.search(
+        r'(?:Hiring|Urgent hiring|We are hiring|We\'re hiring|Looking for|Seeking)\s*(?:\||\:)?\s*(?:for\s+)?(?:an?\s+)?([A-Za-z\s/]{2,50}?\b(?:Engineers?|Developers?|Interns?|Specialists?|Consultants?|Architects?|Leads?|Associates?|Analysts?|Trainees?|Testers?)\b)',
+        text_clean,
+        flags=re.IGNORECASE
+    )
+    if headline:
+        val = headline.group(1).strip()
+        if not any(bad in val.lower() for bad in INVALID_ROLE_WORDS):
+            return _clean_role_title(val)
+
+    # Priority 5: Check standard roles sorted by length
+    text_lower = text_clean.lower()
     for role in COMMON_ROLES:
         if re.search(r'\b' + re.escape(role) + r'\b', text_lower):
             return _clean_role_title(role)
@@ -359,16 +382,16 @@ def parse_raw_job_post(raw_text: str, candidate_name: str = CANDIDATE_NAME) -> D
     emails = _extract_emails(raw_text)
     primary_email = emails[0] if emails else ""
 
-    # 2. Extract company, role, location (Guided by OUTREACH_GUIDELINES.md)
-    company = strip_all_emojis(_infer_company(raw_text, email_addr=primary_email))
-    job_title = strip_all_emojis(_infer_role(raw_text))
-    location = strip_all_emojis(_infer_location(raw_text))
+    # 2. Extract company, role, location (Guided by OUTREACH_GUIDELINES.md & EMAIL_PLAYBOOK.md)
+    company = " ".join(strip_all_emojis(_infer_company(raw_text, email_addr=primary_email)).split())
+    job_title = " ".join(strip_all_emojis(_infer_role(raw_text)).split())
+    location = " ".join(strip_all_emojis(_infer_location(raw_text)).split())
 
     # 3. Extract recruiter-mandated subject line (e.g. 'SE Intern – Ahmad Faraz')
     subject_line = extract_requested_subject(raw_text, candidate_name=candidate_name, fallback_role=job_title)
     if not subject_line:
         subject_line = f"Application for {job_title} - {candidate_name}"
-    subject_line = strip_all_emojis(subject_line)
+    subject_line = " ".join(strip_all_emojis(subject_line).split())
 
     # 4. Generate dynamic tailored pitch based on extracted parameters & actual tech stack
     pitch = strip_all_emojis(generate_tailored_pitch(

@@ -1,4 +1,4 @@
-# 🚀 Ahmad Faraz — Autonomous Job Automation & Organic Outreach Engine (v1.2.1)
+# 🚀 Ahmad Faraz — Autonomous Job Automation & Organic Outreach Engine (v1.2.3)
 
 An intelligent, autonomous job hunting and direct outreach pipeline built with the **Google Antigravity SDK** (`google-antigravity`), powered by **live web search**, **HTTPX browser emulation**, and an active authenticated Google Antigravity CLI session (`agy` with Gemini 3.8 Flash) — **with ZERO Gemini API key required**.
 

@@ -61,6 +61,7 @@ def generate_tailored_pitch(
     has_mongo = bool(re.search(r'\b(mongo|mongodb)\b', desc_clean))
     has_sql = bool(re.search(r'\b(sql|mysql)\b', desc_clean)) or has_postgres
     has_qa = bool(re.search(r'\b(qa|sqa|testing|selenium|playwright|test automation|cypress)\b', desc_clean))
+    has_devops = bool(re.search(r'\b(devops|cloud|infrastructure|docker|kubernetes|linux|ci/cd|cicd|aws|azure)\b', desc_clean)) or "devops" in job_title.lower()
     has_ai_tools = bool(re.search(r'\b(cursor|codex|claude code|copilot|ai tools)\b', desc_clean))
     has_ai_agents = bool(re.search(r'\b(ai agent|llm|langchain|rag|autonomous agents)\b', desc_clean))
     has_ownership = bool(re.search(r'\b(ownership|solo|hand-holding|self-driven|independent)\b', desc_clean))
@@ -76,6 +77,15 @@ def generate_tailored_pitch(
             f"actively to {company}'s quality assurance."
         )
         return strip_all_emojis(qa_pitch).strip()
+
+    # 2. DevOps & Cloud Infrastructure Track
+    if has_devops and not has_django and not has_react:
+        devops_pitch = (
+            f"{opening} I am a Software Engineering graduate with hands-on experience in Python automation scripting, "
+            f"Git, Linux environments, and system debugging, alongside a strong foundation in cloud architectures and web services. "
+            f"I am eager to learn, grow, and contribute actively to {company}'s DevOps and infrastructure initiatives."
+        )
+        return strip_all_emojis(devops_pitch).strip()
 
     # 2. Dynamic Tech Stack Clause
     tech_skills: List[str] = []
