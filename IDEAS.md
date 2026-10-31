@@ -114,3 +114,111 @@ An automated research assistant that converts articles, videos, and GitHub repos
 - **Extractors:** `yt-dlp` (transcripts), `trafilatura` (article text), `PyMuPDF` (PDF papers)
 - **Reasoning:** Google Antigravity SDK with Gemini 3.8 Flash
 - **Knowledge Base:** Obsidian / Local Markdown vault
+
+---
+
+## 6. ✍️ Agentic LinkedIn Thought Leadership & Dev Blog Engine
+> **Turn your actual GitHub commits and project architectures into authentic high-engagement technical posts.**
+
+### Concept
+Most AI-generated LinkedIn content is generic and cringeworthy. This agent produces high-credibility technical content grounded exclusively in your real code and engineering lessons:
+1. **Repository Context Mining:**
+   - Scans your git commit logs, architectural decisions (ADRs), or problem-solving diffs (e.g. *"How we added offline WinRT OCR to a Discord bot in 50ms"* or *"Why pure plain text beats HTML newsletters in cold outreach"*).
+2. **Anti-Slop Post Generation:**
+   - Drafts technical LinkedIn posts with exact code snippets, measurable outcomes, and zero corporate fluff/buzzwords.
+   - Formats markdown carousel slide decks (ready for PDF export).
+3. **Approval in Discord:**
+   - Drops the draft into Discord with `[🚀 Publish via LinkedIn API/Playwright]` or `[✏️ Edit]` buttons.
+
+### Tech Stack
+- **Engine:** Python, GitPython, Google Antigravity SDK
+- **Delivery:** LinkedIn API or headless Playwright session
+- **Interface:** Discord Bot preview cards
+
+---
+
+## 7. 🐛 Autonomous Bug Reproduction & Patch Agent (Repro-Agent)
+> **From raw GitHub Issue to verified regression test and draft Pull Request.**
+
+### Concept
+When an issue is reported on one of your repositories:
+1. **Isolated Reproduction Script:**
+   - Reads the issue description, error trace, and relevant codebase modules.
+   - Automatically writes a minimal standalone reproduction script (`repro.py`) that triggers the failure.
+2. **Sandboxed Verification:**
+   - Runs `repro.py` in an isolated scratch directory to confirm it fails with the expected error.
+3. **Minimal Fix Generation & Test Guard:**
+   - Proposes the minimal code change to fix the underlying issue.
+   - Re-runs `repro.py` to prove the bug is resolved without breaking existing unit tests.
+4. **Draft PR Submission:**
+   - Creates a new git branch, commits the fix + regression test, and opens a GitHub Pull Request with a clear explanation of root cause.
+
+### Tech Stack
+- **Testing:** `pytest`, Python AST inspection, sub-process sandboxing
+- **Model:** Gemini 3.8 Flash (Antigravity CLI bridge)
+- **Version Control:** GitHub REST API / `git` CLI
+
+---
+
+## 8. 🎙️ Voice-to-Action Executive Agent
+> **Send quick voice memos from your phone while walking; the agent executes them.**
+
+### Concept
+You speak a quick 20-second voice note in Discord or Telegram:
+> *"Hey, remind me to check the Systems Limited reply tomorrow morning, add Redis caching to the jobs tracker, and draft a follow-up email to recruiter at Devkiosk."*
+1. **Local / Fast Speech-to-Text:**
+   - Transcribes audio using OpenAI Whisper (local `faster-whisper`) or native speech engines.
+2. **Intent Decomposition:**
+   - Deconstructs the voice note into actionable tasks:
+     - 🗓️ Creates a reminder / calendar event.
+     - 📝 Adds an issue/task to your GitHub project board or Notion.
+     - ✉️ Pre-drafts a follow-up outreach email in your queue.
+3. **Instant Confirmation:**
+   - Replies with an interactive action checklist showing what was scheduled or created.
+
+### Tech Stack
+- **Audio:** `faster-whisper`, `ffmpeg`
+- **Orchestration:** Google Antigravity SDK
+- **Integrations:** Discord Voice/DMs, Google Calendar API, GitHub Issues
+
+---
+
+## 9. 📊 Market Pulse: Tech Stack & Salary Intelligence Radar
+> **A live data pipeline tracking what companies in Pakistan and global remote markets are actually hiring for.**
+
+### Concept
+An autonomous data crawler and analytics dashboard:
+1. **Continuous Market Ingestion:**
+   - Scrapes public job listings daily across LinkedIn, Rozee.pk, Indeed Pakistan, and Wellfound.
+2. **Skill & Technology Extraction:**
+   - Tracks velocity: Which backend frameworks (FastAPI vs Django vs Node.js) are growing fastest?
+   - Quantifies demand: What percentage of jobs mention AI Agents, Docker, Kubernetes, or React?
+   - Extracts stated salary ranges and categorizes by on-site (Lahore, Islamabad, Karachi) vs remote.
+3. **Interactive Visual Dashboard:**
+   - Automatically regenerates a responsive HTML dashboard with Chart.js charts and monthly PDF reports.
+
+### Tech Stack
+- **Scraper:** Python `httpx`, `asyncio`, `BeautifulSoup4`
+- **Analytics:** `pandas`, SQLite
+- **Visualization:** Chart.js, HTML5 responsive dashboard, GitHub Pages automated hosting
+
+---
+
+## 10. ⚔️ Adversarial Dual-Agent Coding Arena (Coder vs. Tester)
+> **The multi-agent pattern that eliminates bugs before human review.**
+
+### Concept
+Two specialized agents working in an adversarial loop:
+1. **Agent A (The Coder):**
+   - Implements a feature or algorithm based on a technical specification.
+2. **Agent B (The Ruthless Tester):**
+   - Has only one goal: find edge cases, generate adversarial inputs (malformed JSON, massive integers, unicode edge cases, race conditions), and write unit tests that break Agent A's code.
+3. **Automated Convergence Loop:**
+   - Agent A fixes the implementation to make Agent B's tests pass.
+   - The loop repeats until Agent B cannot find any failing test cases within 3 consecutive rounds.
+   - Final output: bulletproof code accompanied by a comprehensive test suite.
+
+### Tech Stack
+- **Agent Framework:** Google Antigravity Multi-Agent pattern (`invoke_subagent` / `define_subagent`)
+- **Testing:** `pytest`, `hypothesis` (property-based testing)
+
