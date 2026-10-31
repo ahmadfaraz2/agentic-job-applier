@@ -98,7 +98,7 @@ def run_interactive_setup() -> bool:
     print("=" * 68)
     print("Press Enter to keep the current/default value, or type a new one.\n")
 
-    env_path = Config.BASE_DIR / ".env"
+    env_path = Config.PROJECT_ROOT / ".env"
     existing_vars = {}
     if env_path.exists():
         with open(env_path, "r", encoding="utf-8") as f:
@@ -108,31 +108,35 @@ def run_interactive_setup() -> bool:
                     k, v = s.split("=", 1)
                     existing_vars[k.strip()] = v.strip().strip('"').strip("'")
 
-    # 1. Full Name
-    curr_name = existing_vars.get("SMTP_FROM_NAME") or "Job Applicant"
-    name = input(f"• Your Full Name [{curr_name}]: ").strip() or curr_name
+    try:
+        # 1. Full Name
+        curr_name = existing_vars.get("SMTP_FROM_NAME") or "Job Applicant"
+        name = input(f"• Your Full Name [{curr_name}]: ").strip() or curr_name
 
-    # 2. Gmail Address
-    curr_email = existing_vars.get("SMTP_USER") or ""
-    curr_email_display = f" [{curr_email}]" if curr_email else ""
-    gmail = input(f"• Your Gmail Address{curr_email_display}: ").strip() or curr_email
+        # 2. Gmail Address
+        curr_email = existing_vars.get("SMTP_USER") or ""
+        curr_email_display = f" [{curr_email}]" if curr_email else ""
+        gmail = input(f"• Your Gmail Address{curr_email_display}: ").strip() or curr_email
 
-    # 3. Google App Password
-    curr_pass = existing_vars.get("SMTP_PASSWORD") or ""
-    pass_display = " (hidden / already set)" if curr_pass and not curr_pass.startswith("your_") else ""
-    print("  (Generate 16-letter App Password at https://myaccount.google.com/apppasswords)")
-    app_pass = input(f"• Google App Password{pass_display}: ").strip() or curr_pass
-    app_pass = app_pass.replace(" ", "")
+        # 3. Google App Password
+        curr_pass = existing_vars.get("SMTP_PASSWORD") or ""
+        pass_display = " (hidden / already set)" if curr_pass and not curr_pass.startswith("your_") else ""
+        print("  (Generate 16-letter App Password at https://myaccount.google.com/apppasswords)")
+        app_pass = input(f"• Google App Password{pass_display}: ").strip() or curr_pass
+        app_pass = app_pass.replace(" ", "")
 
-    # 4. Discord Bot Token
-    curr_token = existing_vars.get("DISCORD_BOT_TOKEN") or ""
-    token_display = " (already set)" if curr_token and not curr_token.startswith("your_") else " (optional, press Enter to skip)"
-    bot_token = input(f"• Discord Bot Token{token_display}: ").strip() or curr_token
+        # 4. Discord Bot Token
+        curr_token = existing_vars.get("DISCORD_BOT_TOKEN") or ""
+        token_display = " (already set)" if curr_token and not curr_token.startswith("your_") else " (optional, press Enter to skip)"
+        bot_token = input(f"• Discord Bot Token{token_display}: ").strip() or curr_token
 
-    # 5. Discord Owner User ID
-    curr_owner = existing_vars.get("DISCORD_OWNER_ID") or ""
-    owner_display = f" [{curr_owner}]" if curr_owner else " (optional, press Enter to skip)"
-    owner_id = input(f"• Discord User ID{owner_display}: ").strip() or curr_owner
+        # 5. Discord Owner User ID
+        curr_owner = existing_vars.get("DISCORD_OWNER_ID") or ""
+        owner_display = f" [{curr_owner}]" if curr_owner else " (optional, press Enter to skip)"
+        owner_id = input(f"• Discord User ID{owner_display}: ").strip() or curr_owner
+    except (EOFError, KeyboardInterrupt):
+        print("\n[!] Setup cancelled by user.")
+        return False
 
     # Preserve webhook if present
     curr_webhook = existing_vars.get("DISCORD_WEBHOOK_URL", "")

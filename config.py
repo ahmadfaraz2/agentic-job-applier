@@ -51,6 +51,7 @@ class Config:
 
     # Paths
     PROJECT_ROOT: Path = PROJECT_ROOT
+    BASE_DIR: Path = PROJECT_ROOT
     DATA_DIR: Path = PROJECT_ROOT / "data"
     DB_FILE: Path = DATA_DIR / "jobs_database.json"
 
