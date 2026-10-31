@@ -157,7 +157,8 @@ def send_cv_application_email(
     custom_paragraph: str = "",
     job_description: str = "",
     source_platform: str = "Web",
-    force: bool = False
+    force: bool = False,
+    custom_subject: str = "",
 ) -> str:
     """Sends a professional job application email with Ahmad Faraz's CV attached,
     matching his exact phrasing, greetings, background, and signature from previous sent emails.
@@ -171,6 +172,7 @@ def send_cv_application_email(
         job_description: Job description text used by Dynamic Skills Customizer to tailor pitch.
         source_platform: Where the job was found (e.g. 'LinkedIn', 'User Paste', 'Direct').
         force: If True, bypasses deduplication check.
+        custom_subject: Optional recruiter-mandated subject line override.
 
     Returns:
         Status string of the delivery.
@@ -185,7 +187,10 @@ def send_cv_application_email(
         logger.info(msg)
         return f"Skipped: {msg}"
 
-    subject = f"Application for {job_title} - Ahmad Faraz"
+    if custom_subject and custom_subject.strip():
+        subject = custom_subject.strip()
+    else:
+        subject = f"Application for {job_title} - Ahmad Faraz"
 
     # Dynamic tailored pitch if custom_paragraph is not supplied
     if not custom_paragraph:

@@ -1,6 +1,6 @@
 {
   "version": "1.0",
-  "updated_at": "2026-10-31T14:28:42.672770+00:00",
+  "updated_at": "2026-10-31T14:42:38.084051+00:00",
   "jobs": {
     "rok_1137572": {
       "job_id": "rok_1137572",
@@ -136,11 +136,29 @@
       "match_score": 95,
       "pitch": "Applied via smart raw post paste to hr@devkiosk.com",
       "evaluated_at": "2026-10-31T14:28:42.672747+00:00"
+    },
+    "paste_8498043863373086009": {
+      "job_id": "paste_8498043863373086009",
+      "title": "1️⃣ Business Development Interns",
+      "company": "Mehak Azam",
+      "status": "APPLIED",
+      "match_score": 95,
+      "pitch": "Applied via smart raw post paste to careers@kavelogics.com",
+      "evaluated_at": "2026-10-31T14:35:38.237807+00:00"
+    },
+    "paste_2263586889660929011": {
+      "job_id": "paste_2263586889660929011",
+      "title": "Project Coordinator Intern",
+      "company": "Tech Domain",
+      "status": "APPLIED",
+      "match_score": 95,
+      "pitch": "Applied via smart raw post paste to noor.amjad@techdomain.com.au",
+      "evaluated_at": "2026-10-31T14:42:38.084026+00:00"
     }
   },
   "stats": {
-    "total_evaluated": 15,
-    "qualified": 15,
+    "total_evaluated": 17,
+    "qualified": 17,
     "rejected": 0
   }
 }

@@ -107,6 +107,7 @@ def handle_paste_smart(to_email_arg: str = "", raw_post_text: str = ""):
     location = parsed.get("location", "Pakistan / Remote")
     tailored_pitch = parsed.get("tailored_pitch", "")
     discovered_emails = parsed.get("discovered_emails", [])
+    subject_line = parsed.get("subject_line", f"Application for {job_title} - Ahmad Faraz")
 
     # Recruiter email determination
     to_email = to_email_arg.strip()
@@ -130,6 +131,7 @@ def handle_paste_smart(to_email_arg: str = "", raw_post_text: str = ""):
     print("=" * 65)
     print(f"• Company:         {company}")
     print(f"• Job Title:       {job_title}")
+    print(f"• Subject Line:    {subject_line}")
     print(f"• Recruiter Email: {to_email}")
     if len(discovered_emails) > 1:
         print(f"• Other Emails:    {', '.join(discovered_emails[1:])}")
@@ -140,7 +142,7 @@ def handle_paste_smart(to_email_arg: str = "", raw_post_text: str = ""):
     print("[Tailored Email Outreach Preview]")
     print("-" * 65)
     print(f"To: {to_email}")
-    print(f"Subject: Application for {job_title} - Ahmad Faraz\n")
+    print(f"Subject: {subject_line}\n")
     print(f"Hello {company} team,\n")
     print(tailored_pitch)
     print("\nI'm based in Sargodha and open to discussing remote work or relocation if needed. I've attached my CV for your review and would be glad to talk about how I can contribute if my background is a match.\n")
@@ -162,6 +164,7 @@ def handle_paste_smart(to_email_arg: str = "", raw_post_text: str = ""):
             job_title=job_title,
             company=company,
             custom_paragraph=tailored_pitch,
+            custom_subject=subject_line,
             source_platform="LinkedIn Post",
             force=already_applied
         )
@@ -189,13 +192,15 @@ def handle_paste_smart(to_email_arg: str = "", raw_post_text: str = ""):
         new_comp = input(f"• Company [{company}]: ").strip() or company
         new_title = input(f"• Job Title [{job_title}]: ").strip() or job_title
         new_email = input(f"• Recruiter Email [{to_email}]: ").strip() or to_email
-        confirm = input(f"Send to {new_email} for {new_title} at {new_comp}? [Y/n]: ").strip().lower()
+        new_sub = input(f"• Subject Line [{subject_line}]: ").strip() or subject_line
+        confirm = input(f"Send to {new_email} with subject '{new_sub}'? [Y/n]: ").strip().lower()
         if confirm in ("", "y", "yes"):
             result = send_cv_application_email(
                 to_email=new_email,
                 job_title=new_title,
                 company=new_comp,
                 custom_paragraph=tailored_pitch,
+                custom_subject=new_sub,
                 source_platform="LinkedIn Post",
                 force=True
             )

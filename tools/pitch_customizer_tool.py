@@ -1,14 +1,14 @@
 """
 Dynamic Skills Customizer for Ahmad Faraz.
 Analyzes job requirements and tailors the middle pitch paragraph to emphasize
-the exact relevant skills (Backend, Fullstack, QA/Automation, AI Agents)
+the exact relevant skills (Backend, Fullstack, QA/Automation, AI Tools/Agents)
 while keeping Ahmad Faraz's authentic 100% organic, humble, and direct voice.
 """
 
 from __future__ import annotations
 
 import re
-from typing import Optional
+from typing import List, Optional
 
 def generate_tailored_pitch(
     job_title: str,
@@ -17,74 +17,95 @@ def generate_tailored_pitch(
     notes: str = ""
 ) -> str:
     """Generates an organic, tailored pitch paragraph highlighting Ahmad Faraz's relevant stack.
+    Dynamically reflects the exact stack requested in the post (Django, Node.js, PostgreSQL, MongoDB,
+    Cursor/AI tools, React, etc.) in a human, humble, and persuasive tone.
 
     Args:
-        job_title: Position title (e.g. 'Associate Software Engineer', 'Python Intern').
-        company: Company name (e.g. 'Rolustech', 'Contour Software').
+        job_title: Position title (e.g. 'Software Engineering Intern', 'Associate Python Engineer').
+        company: Company name (e.g. 'Devkiosk', 'Systems Limited').
         job_description: Job description text or snippet.
         notes: Optional custom notes or user-provided requirements.
 
     Returns:
         A concise, tailored pitch matching Ahmad Faraz's authentic sent emails.
     """
-    combined_text = f"{job_title} {company} {job_description} {notes}".lower()
+    desc_clean = f"{job_title} {company} {job_description} {notes}".lower()
 
-    # Detect technical focus areas
-    is_qa_testing = any(w in combined_text for w in ["qa", "testing", "test", "sqa", "quality assurance", "selenium", "playwright", "cypress"])
-    is_ai_agent = any(w in combined_text for w in ["ai", "agent", "llm", "langchain", "prompt", "machine learning", "rag"])
-    is_frontend_fullstack = any(w in combined_text for w in ["react", "next.js", "frontend", "fullstack", "full stack", "javascript", "typescript", "ui"])
-    is_backend = any(w in combined_text for w in ["backend", "django", "fastapi", "flask", "database", "sql", "postgres", "rest api", "api"])
-    is_trainee_intern = any(w in combined_text for w in ["trainee", "intern", "internship", "fresh", "junior", "associate", "entry"])
+    # Exact skill detections using regex word boundaries to avoid substring false positives (e.g. 'ai' in 'paid')
+    has_django = bool(re.search(r'\bdjango\b', desc_clean))
+    has_fastapi = bool(re.search(r'\bfastapi\b', desc_clean))
+    has_python = bool(re.search(r'\bpython\b', desc_clean)) or has_django or has_fastapi
+    has_node = bool(re.search(r'\b(node|node\.js|nodejs|express)\b', desc_clean))
+    has_react = bool(re.search(r'\b(react|reactjs|next\.js|nextjs)\b', desc_clean))
+    has_postgres = bool(re.search(r'\b(postgres|postgresql)\b', desc_clean))
+    has_mongo = bool(re.search(r'\b(mongo|mongodb)\b', desc_clean))
+    has_sql = bool(re.search(r'\b(sql|mysql)\b', desc_clean)) or has_postgres
+    has_qa = bool(re.search(r'\b(qa|sqa|testing|selenium|playwright|test automation|cypress)\b', desc_clean))
+    has_ai_tools = bool(re.search(r'\b(cursor|codex|claude code|copilot|ai tools)\b', desc_clean))
+    has_ai_agents = bool(re.search(r'\b(ai agent|llm|langchain|rag|autonomous agents)\b', desc_clean))
+    has_ownership = bool(re.search(r'\b(ownership|solo|hand-holding|self-driven|independent)\b', desc_clean))
 
-    # 1. QA & Automation Testing track
-    if is_qa_testing:
+    opening = f"I saw your {job_title} opening at {company} and would like to apply."
+
+    # 1. Pure QA / Testing Track
+    if has_qa and not has_django and not has_node and not has_ai_tools:
         return (
-            f"I saw your {job_title} opening at {company} and wanted to apply. "
-            f"I am a Software Engineering graduate with hands-on experience in Python scripting, test automation "
-            f"(Playwright and Selenium), REST API testing, and Git. I have a meticulous eye for debugging, discovering "
-            f"edge cases, and ensuring software reliability, and I would love to contribute actively to {company}'s quality assurance."
+            f"{opening} I am a Software Engineering graduate with hands-on experience in Python scripting, "
+            f"test automation (Playwright and Selenium), REST API testing, and Git. I have a meticulous eye for "
+            f"debugging, discovering edge cases, and ensuring software reliability, and I would love to contribute "
+            f"actively to {company}'s quality assurance."
         )
 
-    # 2. AI Agents & LLM Workflows track
-    if is_ai_agent:
-        return (
-            f"I saw your {job_title} opening at {company} and would like to apply. "
-            f"I am a Software Engineering graduate specializing in Python development, autonomous AI agent pipelines, "
-            f"tool calling, and LLM orchestration, alongside hands-on experience with FastAPI, REST APIs, and databases. "
-            f"I enjoy building practical automated workflows and am keen to contribute to your engineering initiatives."
-        )
+    # 2. Dynamic Tech Stack Clause
+    tech_skills: List[str] = []
+    if has_django and has_fastapi:
+        tech_skills.append("Python (Django and FastAPI)")
+    elif has_django:
+        tech_skills.append("Python (Django)")
+    elif has_fastapi:
+        tech_skills.append("Python (FastAPI)")
+    elif has_python:
+        tech_skills.append("Python backend development")
 
-    # 3. Fullstack / React + Python track
-    if is_frontend_fullstack and is_backend:
-        return (
-            f"I saw your {job_title} opening at {company} and would like to apply. "
-            f"I am a Software Engineering graduate with practical experience building full-stack applications using Python "
-            f"(Django and FastAPI) for backend services and React/JavaScript for clean, responsive interfaces. "
-            f"I enjoy end-to-end problem solving and am eager to contribute to {company}'s product and development teams."
-        )
+    if has_node:
+        tech_skills.append("Node.js architectures")
 
-    # 4. Frontend Focus
-    if is_frontend_fullstack and not is_backend:
-        return (
-            f"I saw your {job_title} opening at {company} and wanted to apply. "
-            f"I am a Software Engineering graduate with hands-on experience building dynamic web interfaces with React, "
-            f"JavaScript, modern CSS, and integrating with RESTful backend APIs. I am detail-oriented with UI implementation "
-            f"and would love the opportunity to contribute to {company}."
-        )
+    if has_react:
+        tech_skills.append("responsive React interfaces")
 
-    # 5. Backend / Python Focus
-    if is_backend:
-        return (
-            f"I saw your {job_title} opening at {company} and wanted to apply. "
-            f"I am a Software Engineering graduate with hands-on experience developing backend APIs in Python using "
-            f"Django and FastAPI, working with relational databases (SQL/PostgreSQL), Git, and browser automation. "
-            f"I enjoy designing reliable endpoints and debugging complex systems, and I am keen to contribute to {company}'s backend team."
-        )
+    # Databases
+    dbs: List[str] = []
+    if has_postgres:
+        dbs.append("PostgreSQL")
+    if has_mongo:
+        dbs.append("MongoDB")
+    elif has_sql and not has_postgres:
+        dbs.append("relational databases (SQL)")
 
-    # 6. Default / Trainee / Fresh Graduate General track
-    return (
-        f"I saw your {job_title} opening at {company} and would like to apply. "
-        f"I am a Software Engineering graduate with hands-on experience building applications in Python (Django and FastAPI), "
-        f"JavaScript/React, and AI Agent workflows, working with REST APIs, databases, Git, and automation scripting. "
-        f"I am a fast learner with strong fundamentals and am eager to contribute actively to {company}'s engineering team."
+    db_str = ""
+    if dbs:
+        db_str = f" and working with databases like {' and '.join(dbs)}"
+
+    # Modern AI tools & Developer workflow
+    ai_tool_str = ""
+    if has_ai_tools:
+        ai_tool_str = ", alongside practical experience utilizing modern AI developer workflows (Cursor and Claude Code)"
+    elif has_ai_agents:
+        ai_tool_str = ", alongside hands-on work with AI agent pipelines and LLM orchestration"
+
+    # Autonomy & Ownership closing
+    closing_str = ""
+    if has_ownership:
+        closing_str = f" I take strong ownership of projects from design to debugging, work comfortably without hand-holding, and am keen to contribute to {company}'s engineering team."
+    else:
+        closing_str = f" I enjoy solving practical engineering problems with care and am keen to contribute to {company}'s engineering team."
+
+    # Fallback if no specific stack was detected
+    skills_joined = " and ".join(tech_skills) if tech_skills else "Python (Django/FastAPI) and REST APIs"
+
+    pitch = (
+        f"{opening} I am a Software Engineering graduate with hands-on experience building applications using "
+        f"{skills_joined}{db_str}{ai_tool_str}.{closing_str}"
     )
+
+    return pitch
