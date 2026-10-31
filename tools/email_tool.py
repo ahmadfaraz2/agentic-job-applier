@@ -44,26 +44,38 @@ def strip_all_emojis(text: str) -> str:
     cleaned = EMOJI_PATTERN.sub('', text)
     return cleaned
 
-# Default CV path
-DEFAULT_CV_PATH = Config.DATA_DIR / "Ahmad_Faraz_CV.pdf"
+# Dynamic CV resolution
+def get_cv_path() -> Optional[Path]:
+    """Finds Ahmad_Faraz_CV.pdf or falls back to any .pdf file in data/."""
+    named_cv = Config.DATA_DIR / "Ahmad_Faraz_CV.pdf"
+    if named_cv.exists():
+        return named_cv
+    pdfs = sorted(Config.DATA_DIR.glob("*.pdf"))
+    if pdfs:
+        return pdfs[0]
+    return None
 
-# Ahmad Faraz's standard professional signature
+DEFAULT_CV_PATH = get_cv_path() or (Config.DATA_DIR / "your_cv.pdf")
+
+# Standard professional signature
 def get_standard_signature_text() -> str:
+    name = getattr(Config, "SMTP_FROM_NAME", "") or "Job Applicant"
     phone = getattr(Config, "SENDER_PHONE", "")
     phone_part = f"\n{phone}" if phone else ""
     return f"""Regards,
-Ahmad Faraz{phone_part}
+{name}{phone_part}
 LinkedIn: https://www.linkedin.com/in/ahmad-faraz-/
 GitHub: https://github.com/ahmadfaraz2""".strip()
 
 STANDARD_SIGNATURE_TEXT = get_standard_signature_text()
 
 def get_standard_signature_html() -> str:
+    name = getattr(Config, "SMTP_FROM_NAME", "") or "Job Applicant"
     phone = getattr(Config, "SENDER_PHONE", "")
     phone_p = f'<p style="margin: 2px 0 0 0; font-size: 14px; color: #475569;">{phone}</p>' if phone else ""
     return f"""<div style="margin-top: 24px; padding-top: 14px; border-top: 1px solid #e2e8f0; font-family: sans-serif; color: #334155;">
     <p style="margin: 0; font-weight: 600; color: #0f172a;">Regards,</p>
-    <p style="margin: 2px 0 0 0; font-weight: 700; font-size: 15px; color: #0f172a;">Ahmad Faraz</p>
+    <p style="margin: 2px 0 0 0; font-weight: 700; font-size: 15px; color: #0f172a;">{name}</p>
     {phone_p}
     <p style="margin: 4px 0 0 0; font-size: 13px;">
         <a href="https://www.linkedin.com/in/ahmad-faraz-/" style="color: #0284c7; text-decoration: none;">LinkedIn</a> |
@@ -214,10 +226,11 @@ def send_cv_application_email(
         logger.info(msg)
         return f"Skipped: {msg}"
 
+    name = getattr(Config, "SMTP_FROM_NAME", "") or "Job Applicant"
     if custom_subject and custom_subject.strip():
         subject = custom_subject.strip()
     else:
-        subject = f"Application for {job_title} - Ahmad Faraz"
+        subject = f"Application for {job_title} - {name}"
 
     # Enforce strict zero-emoji mandate (OUTREACH_GUIDELINES.md)
     subject = " ".join(strip_all_emojis(subject).split())
@@ -243,9 +256,10 @@ I'm based in Sargodha and open to discussing remote work or relocation if needed
 {STANDARD_SIGNATURE_TEXT}
 """
 
+    cv_file = get_cv_path()
     attachments = []
-    if DEFAULT_CV_PATH.exists():
-        attachments.append(str(DEFAULT_CV_PATH))
+    if cv_file and cv_file.exists():
+        attachments.append(str(cv_file))
 
     result = send_smtp_email(
         to_email=to_email,
@@ -263,7 +277,7 @@ I'm based in Sargodha and open to discussing remote work or relocation if needed
             recipient_email=to_email,
             source=source_platform,
             status="APPLIED",
-            cv_attached="Ahmad_Faraz_CV.pdf",
+            cv_attached=cv_file.name if cv_file else "None",
             subject=subject,
             pitch_snippet=custom_paragraph[:200]
         )

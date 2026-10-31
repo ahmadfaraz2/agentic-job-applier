@@ -1,20 +1,20 @@
-# 🚀 Ahmad Faraz — Autonomous Job Automation & Organic Outreach Engine (v1.3.0)
+# 🚀 Agentic Job Applier — Autonomous Job Outreach & Application System (v1.3.0)
 
 An intelligent, autonomous job hunting and direct outreach pipeline built with the **Google Antigravity SDK** (`google-antigravity`), powered by **live web search**, **HTTPX browser emulation**, and an active authenticated Google Antigravity CLI session (`agy` with Gemini 3.8 Flash) — **with ZERO Gemini API key required**.
 
-All outgoing application emails represent **Ahmad Faraz**'s genuine sender identity, authentic tone, contact details, and attached CV ([`Ahmad_Faraz_CV.pdf`](file:///F:/Antigravity-cli/job-automation-smtp/data/Ahmad_Faraz_CV.pdf)), protected by an **Excel tracking and anti-duplicate engine**.
+All outgoing application emails represent your genuine sender identity, authentic tone, contact details, and attached CV, protected by an **Excel tracking and anti-duplicate engine**.
 
 ---
 
-## 👤 Ahmad Faraz's Authentic Application Profile
+## 👤 Candidate Application Profile
 
-- **Sender Identity**: `Ahmad Faraz <your_email@gmail.com>` *(Authenticated personal sender)*
+- **Sender Identity**: `Your Name <your_email@gmail.com>` *(Authenticated personal sender)*
 - **Contact Details**:
-  - **Location**: Sargodha, Pakistan (Open to Remote & Relocation)
-  - **LinkedIn**: [linkedin.com/in/ahmad-faraz-](https://www.linkedin.com/in/ahmad-faraz-/)
-  - **GitHub**: [github.com/ahmadfaraz2](https://github.com/ahmadfaraz2)
-- **CV Attachment**: [`data/Ahmad_Faraz_CV.pdf`](file:///F:/Antigravity-cli/job-automation-smtp/data/Ahmad_Faraz_CV.pdf) automatically attached to every application email.
-- **Application Format**: **100% Pure Organic Plain Text** (`text/plain`). No HTML newsletters, marketing cards, or robotic templates — matches Ahmad's genuine Gmail sent emails.
+  - **Location**: Your City, Country (Open to Remote & Relocation)
+  - **LinkedIn**: [linkedin.com/in/your-profile](https://www.linkedin.com)
+  - **GitHub**: [github.com/your-username](https://github.com)
+- **CV Attachment**: Automatically attaches your CV PDF from `data/` to every application email.
+- **Application Format**: **100% Pure Organic Plain Text** (`text/plain`). No HTML newsletters, marketing cards, or robotic templates — matches genuine Gmail sent emails.
 
 ---
 
@@ -35,7 +35,7 @@ flowchart TD
     end
 
     subgraph Outreach Delivery
-        Guard -->|5. If not applied -> Dispatch| ToolSMTP["📧 tools/email_tool.py<br/>(Ahmad Faraz Identity + Ahmad_Faraz_CV.pdf)"]
+        Guard -->|5. If not applied -> Dispatch| ToolSMTP["📧 tools/email_tool.py<br/>(Personal Identity + Attached CV)"]
         ToolSMTP --> Gmail["📬 Gmail SMTP Server<br/>(smtp.gmail.com:587 STARTTLS)"]
         Gmail --> Recipient["📥 Recruiter / HR Inbox"]
         Gmail --> SentFolder["📁 Gmail Sent Mail Folder"]
@@ -70,7 +70,7 @@ Inspects any company career page or job listing URL via HTTPX:
 - **Strict Anti-Duplicate Guard**: Checks recipient email and company name before sending — **permanently prevents accidental double-sending to the same recruiter or company**.
 
 ### 5. Dynamic Skills Customizer
-Analyzes each job description and dynamically tailors Ahmad's middle pitch paragraph to emphasize the exact tech stack required:
+Analyzes each job description and dynamically tailors the pitch paragraph to emphasize the exact tech stack required:
 - **Backend / APIs**: Focuses on Python (FastAPI/Django), REST architecture, SQL/PostgreSQL.
 - **Frontend / Fullstack**: Emphasizes React, JavaScript, responsive UI, component state design.
 - **QA & Automation**: Focuses on Playwright, Selenium, test automation, and debugging.
@@ -78,7 +78,7 @@ Analyzes each job description and dynamically tailors Ahmad's middle pitch parag
 
 ### 6. Inbound Reply & Interview Detector (`--check-replies`)
 Monitors your Gmail inbox via IMAP SSL, matches responses from applied companies, and categorizes incoming messages:
-- 🟢 **Interview Invites** *(e.g. Rolustech response detected)*
+- 🟢 **Interview Invites** *(e.g. recruiter response detected)*
 - 🟡 **Technical Assessments / Coding Tests**
 - 💬 **Recruiter Inquiries**
 - 🔴 **Status Updates / Rejections**
@@ -93,16 +93,17 @@ Dispatches instant rich embed notifications to your Discord channel whenever:
 Takes completely unformatted, messy text from any LinkedIn hiring post, email, or announcement in one go (no tedious 5-question wizards!):
 - Automatically extracts **Company Name**, **Job Title / Role**, **Recruiter Email**, and **Location**.
 - Resolves company aliases & domains (e.g. `talent@systemsltd.com` -> `Systems Limited`).
-- Automatically generates the customized pitch for Ahmad Faraz.
+- Automatically generates the customized pitch.
 - Checks against [`applied_jobs_tracker.xlsx`](file:///F:/Antigravity-cli/job-automation-smtp/data/applied_jobs_tracker.xlsx) to prevent duplicate outreach.
 - Prompts for a single 1-key confirmation to dispatch (`Enter` = Yes!).
 
 ### 9. Interactive Discord Bot & DM Outreach Assistant (`--discord-bot`, `discord_bot.py`)
-Paste raw LinkedIn posts directly into private Discord DMs from your phone or PC:
-- **Instant Intelligence Parsing**: Gemini 3.8 Flash extracts Company, Job Title, Recruiter Email, and exact Subject requirements.
+Paste raw LinkedIn posts or upload mobile screenshots directly into private Discord DMs from your phone or PC:
+- **Instant Screenshot OCR**: Hardware-accelerated local OCR reads phone screenshots in milliseconds.
+- **Model Intelligence**: Gemini 3.8 Flash extracts Company, Job Title, Recruiter Email, and exact Subject requirements.
 - **Interactive UI Preview**: Delivers a formatted embed with full details and dynamic pitch.
-- **1-Click Dispatch**: Press **`[🚀 Send Application Email]`** to send with `Ahmad_Faraz_CV.pdf` attached.
-- **DM Commands**: `!stats` (tracker summary), `!check` (inbox replies), `!history` (last 5 sent applications), `!help`.
+- **1-Click Dispatch**: Press **`[🚀 Send Application Email]`** to send with CV attached.
+- **Native Slash Commands**: `/apply`, `/stats`, `/check`, `/history`, `/help`.
 - See [`DISCORD_BOT_GUIDE.md`](file:///F:/Antigravity-cli/job-automation-smtp/DISCORD_BOT_GUIDE.md) for 2-minute setup instructions.
 
 ---
@@ -169,7 +170,7 @@ job-automation-smtp/
 ├── antigravity_cli_agent.py      # Zero-API-key bridge leveraging authenticated agy session
 ├── test_smtp.py                  # Standalone SMTP connection tester
 ├── data/
-│   ├── Ahmad_Faraz_CV.pdf        # Ahmad Faraz's CV PDF attached to applications
+│   ├── your_cv.pdf               # Your CV PDF attached to applications (or any *.pdf in data/)
 │   ├── applied_jobs_tracker.xlsx # Formatted Excel tracking workbook (Anti-duplicate source)
 │   ├── applied_jobs_tracker.csv  # Companion CSV file
 │   ├── pasted_jobs.json          # Queue for copy-pasted job opportunities
@@ -200,7 +201,7 @@ SMTP_PORT=587
 SMTP_USE_TLS=True
 SMTP_USER=your_email@gmail.com
 SMTP_PASSWORD=your_gmail_app_password
-SMTP_FROM_NAME=Ahmad Faraz
+SMTP_FROM_NAME="Your Full Name"
 ALERT_RECIPIENT_EMAIL=your_email@gmail.com
 
 # Job Automation Preferences

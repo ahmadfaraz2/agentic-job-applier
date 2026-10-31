@@ -1,6 +1,6 @@
-# 🤖 Discord Bot Setup & Usage Guide (Ahmad Faraz Outreach Engine)
+# 🤖 Discord Bot Setup & Usage Guide (Agentic Job Outreach Engine)
 
-You can now apply to any job directly from your phone or PC by **pasting a raw LinkedIn post into Discord DMs**. The bot will extract all company and role intelligence using Google Antigravity & Gemini 3.8 Flash, show you an interactive preview, and let you dispatch your cold application email with `Ahmad_Faraz_CV.pdf` attached with a single click.
+You can now apply to any job directly from your phone or PC by **pasting a raw LinkedIn post or uploading mobile screenshots into Discord DMs**. The bot will extract all company and role intelligence using Google Antigravity & Gemini 3.8 Flash, show you an interactive preview, and let you dispatch your cold application email with your CV attached with a single click.
 
 ---
 
@@ -8,7 +8,7 @@ You can now apply to any job directly from your phone or PC by **pasting a raw L
 
 ### Step 1: Create Your Bot on Discord Developer Portal
 1. Open the [Discord Developer Portal](https://discord.com/developers/applications).
-2. Click **New Application** (top right), enter a name (e.g. `Ahmad Job Assistant`), and click **Create**.
+2. Click **New Application** (top right), enter a name (e.g. `Job Outreach Assistant`), and click **Create**.
 3. In the left sidebar, click on **Bot**.
 4. Click **Reset Token** (or **Copy Token**) to copy your secret Bot Token.
 
@@ -87,22 +87,23 @@ Subject: SE Intern – [Your Name]
    - Company: `Devkiosk`
    - Role: `SE Intern`
    - Recruiter Email: `hr@devkiosk.com`
-   - Subject Line: `SE Intern – Ahmad Faraz` (Replaces `[Your Name]` cleanly)
+   - Subject Line: `SE Intern – Your Name` (Replaces `[Your Name]` cleanly with your configured sender name)
    - Dynamic Pitch: Highlights your Django, Node.js, PostgreSQL, and MongoDB experience.
 2. **Duplicate Check:** Verifies against `applied_jobs_tracker.xlsx`.
 3. **Interactive Buttons:**
-   - Click **`[🚀 Send Application Email]`**: Sends the application with `Ahmad_Faraz_CV.pdf` attached, logs to Excel, and updates the Discord message with a green confirmation!
+   - Click **`[🚀 Send Application Email]`**: Sends the application with your CV attached from `data/`, logs to Excel, and updates the Discord message with a green confirmation!
    - Click **`[❌ Cancel]`**: Cancels the application without sending anything.
 
 ---
 
-## 🛠️ DM Quick Commands
+## 🛠️ DM Quick Commands & Slash Commands
 
-Type these directly in the bot's DM:
+You can use either native Discord Slash Commands (`/`) or DM prefix commands (`!`):
 
-| Command | Description |
-| :--- | :--- |
-| `!stats` | View total sent applications, interview invites, and unique companies from Excel. |
-| `!check` | Scan Gmail via IMAP for incoming recruiter replies and interview invites. |
-| `!history` | View the last 5 applications sent from your system. |
-| `!help` | Show the user guide and your Discord User ID. |
+| Slash Command | Text Command | Description |
+| :--- | :--- | :--- |
+| `/apply` | *(Paste post/image)* | Parse a job post and open the 1-click apply preview |
+| `/stats` | `!stats` | View total sent applications, interview invites, and unique companies from Excel |
+| `/check` | `!check` | Scan Gmail via IMAP for incoming recruiter replies and interview invites |
+| `/history` | `!history` | View the last 5 applications sent from your system |
+| `/help` | `!help` | Show the user guide and your Discord User ID |

@@ -97,6 +97,7 @@ class Config:
         return bool(
             cls.SMTP_HOST
             and cls.SMTP_USER
+            and not cls.SMTP_USER.startswith("your_")
             and cls.SMTP_PASSWORD
             and not cls.SMTP_PASSWORD.startswith("your_")
             and cls.ALERT_RECIPIENT_EMAIL
@@ -112,6 +113,29 @@ class Config:
     def is_discord_bot_configured(cls) -> bool:
         """Checks if DISCORD_BOT_TOKEN is available."""
         return bool(cls.DISCORD_BOT_TOKEN and not cls.DISCORD_BOT_TOKEN.startswith("your_"))
+
+    @classmethod
+    def reload(cls) -> None:
+        """Reloads settings from .env file into class attributes."""
+        try:
+            from dotenv import load_dotenv
+            load_dotenv(dotenv_path=ENV_PATH, override=True)
+        except ImportError:
+            pass
+
+        cls.SMTP_HOST = os.getenv("SMTP_HOST", "smtp.gmail.com")
+        cls.SMTP_PORT = _get_int("SMTP_PORT", 587)
+        cls.SMTP_USE_TLS = _get_bool("SMTP_USE_TLS", True)
+        cls.SMTP_USE_SSL = _get_bool("SMTP_USE_SSL", False)
+        cls.SMTP_USER = os.getenv("SMTP_USER", "")
+        cls.SMTP_PASSWORD = os.getenv("SMTP_PASSWORD", "")
+        cls.SMTP_FROM_EMAIL = os.getenv("SMTP_FROM_EMAIL", cls.SMTP_USER)
+        cls.SMTP_FROM_NAME = os.getenv("SMTP_FROM_NAME", "Job Applicant")
+        cls.SENDER_PHONE = os.getenv("SENDER_PHONE", "")
+        cls.ALERT_RECIPIENT_EMAIL = os.getenv("ALERT_RECIPIENT_EMAIL", cls.SMTP_USER)
+        cls.DISCORD_BOT_TOKEN = os.getenv("DISCORD_BOT_TOKEN", "")
+        cls.DISCORD_OWNER_ID = os.getenv("DISCORD_OWNER_ID", "")
+        cls.DISCORD_WEBHOOK_URL = os.getenv("DISCORD_WEBHOOK_URL", "")
 
 # Ensure data directory exists
 Config.DATA_DIR.mkdir(parents=True, exist_ok=True)

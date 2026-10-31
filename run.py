@@ -1,10 +1,9 @@
 """
-CLI Entrypoint for Antigravity Job Automation & SMTP Outreach Engine.
-Specialized for Ahmad Faraz:
+CLI Entrypoint for Agentic Job Automation & Organic Outreach Engine.
 - Ingests copy-pasted jobs from user sources (data/pasted_jobs.json or direct CLI).
 - Browses and extracts details/emails from any user-provided URL.
 - Crawls live LinkedIn public jobs without authentication bottlenecks.
-- Dispatches pure organic plain-text application emails with Ahmad_Faraz_CV.pdf attached.
+- Dispatches pure organic plain-text application emails with CV attached.
 """
 
 from __future__ import annotations
@@ -28,7 +27,7 @@ from config import Config
 from test_smtp import run_smtp_test
 from tools.tracker_tool import record_job_decision, get_application_history
 from tools.browser_tool import browse_job_page, check_cdp_available, extract_job_and_email_from_url
-from tools.email_tool import send_cv_application_email
+from tools.email_tool import send_cv_application_email, get_cv_path, STANDARD_SIGNATURE_TEXT
 from tools.job_scanner_tool import (
     fetch_linkedin_public_jobs,
     load_pasted_jobs,
@@ -45,12 +44,151 @@ from workflow import run_unified_workflow, start_periodic_daemon
 def print_banner():
     banner = f"""
     ╔══════════════════════════════════════════════════════════════╗
-    ║        AHMAD FARAZ — JOB OUTREACH & APPLICATION SYSTEM       ║
+    ║        AGENTIC JOB APPLIER & OUTREACH ENGINE                 ║
     ║        Powered by Google Antigravity & Pure Organic SMTP     ║
     ║                         Version {Config.VERSION}                            ║
     ╚══════════════════════════════════════════════════════════════╝
     """
     print(banner)
+
+def show_first_run_guide() -> bool:
+    """Displays onboarding instructions when setup is missing, and offers the setup wizard.
+    Returns True if user configured credentials, False if skipped.
+    """
+    print("\n" + "═" * 68)
+    print("  🚀 WELCOME TO AGENTIC JOB APPLIER & OUTREACH ENGINE")
+    print("═" * 68)
+    print("  Before applying to jobs or starting the bot, please complete")
+    print("  a quick 1-time setup for your Gmail and Discord.\n")
+    print("  📧 1. GMAIL SETUP (Required for sending applications & tracking)")
+    print("     • Set your Gmail address in SMTP_USER")
+    print("     • Generate a 16-character Google App Password in SMTP_PASSWORD:")
+    print("       1. Open: https://myaccount.google.com/security")
+    print("       2. Ensure '2-Step Verification' is ON")
+    print("       3. Search 'App passwords' (or https://myaccount.google.com/apppasswords)")
+    print("       4. Create an App password and paste the 16 letters into .env")
+    print("     • Set your name in SMTP_FROM_NAME (e.g. \"Jane Doe\")\n")
+    print("  🤖 2. DISCORD BOT SETUP (Optional - apply via mobile DMs & screenshots)")
+    print("     • Create an application at: https://discord.com/developers/applications")
+    print("     • Under 'Bot' tab, copy Token into DISCORD_BOT_TOKEN")
+    print("     • Under 'Privileged Gateway Intents', turn ON 'Message Content Intent'")
+    print("     • In Discord: Settings > Advanced > Developer Mode (ON)")
+    print("       Right-click your avatar > Copy User ID into DISCORD_OWNER_ID\n")
+    print("  📄 3. YOUR CV RESUME")
+    print("     • Place your resume in PDF format in the 'data/' folder")
+    print("       (e.g., data/your_cv.pdf). Any .pdf file in data/ is auto-attached!\n")
+    print("═" * 68)
+
+    if sys.stdin and sys.stdin.isatty():
+        try:
+            choice = input("Would you like to run the interactive setup wizard right now? [Y/n]: ").strip().lower()
+            if choice in ("", "y", "yes"):
+                return run_interactive_setup()
+        except (EOFError, KeyboardInterrupt):
+            pass
+
+    print("💡 To configure at any time, run:")
+    print("   python run.py --setup\n")
+    return False
+
+def run_interactive_setup() -> bool:
+    """Interactive CLI wizard to configure Gmail, Discord, and candidate info into .env."""
+    print("\n" + "=" * 68)
+    print("  🛠️  AGENTIC JOB APPLIER — INTERACTIVE SETUP WIZARD")
+    print("=" * 68)
+    print("Press Enter to keep the current/default value, or type a new one.\n")
+
+    env_path = Config.BASE_DIR / ".env"
+    existing_vars = {}
+    if env_path.exists():
+        with open(env_path, "r", encoding="utf-8") as f:
+            for line in f:
+                s = line.strip()
+                if s and not s.startswith("#") and "=" in s:
+                    k, v = s.split("=", 1)
+                    existing_vars[k.strip()] = v.strip().strip('"').strip("'")
+
+    # 1. Full Name
+    curr_name = existing_vars.get("SMTP_FROM_NAME") or "Job Applicant"
+    name = input(f"• Your Full Name [{curr_name}]: ").strip() or curr_name
+
+    # 2. Gmail Address
+    curr_email = existing_vars.get("SMTP_USER") or ""
+    curr_email_display = f" [{curr_email}]" if curr_email else ""
+    gmail = input(f"• Your Gmail Address{curr_email_display}: ").strip() or curr_email
+
+    # 3. Google App Password
+    curr_pass = existing_vars.get("SMTP_PASSWORD") or ""
+    pass_display = " (hidden / already set)" if curr_pass and not curr_pass.startswith("your_") else ""
+    print("  (Generate 16-letter App Password at https://myaccount.google.com/apppasswords)")
+    app_pass = input(f"• Google App Password{pass_display}: ").strip() or curr_pass
+    app_pass = app_pass.replace(" ", "")
+
+    # 4. Discord Bot Token
+    curr_token = existing_vars.get("DISCORD_BOT_TOKEN") or ""
+    token_display = " (already set)" if curr_token and not curr_token.startswith("your_") else " (optional, press Enter to skip)"
+    bot_token = input(f"• Discord Bot Token{token_display}: ").strip() or curr_token
+
+    # 5. Discord Owner User ID
+    curr_owner = existing_vars.get("DISCORD_OWNER_ID") or ""
+    owner_display = f" [{curr_owner}]" if curr_owner else " (optional, press Enter to skip)"
+    owner_id = input(f"• Discord User ID{owner_display}: ").strip() or curr_owner
+
+    # Preserve webhook if present
+    curr_webhook = existing_vars.get("DISCORD_WEBHOOK_URL", "")
+
+    lines = [
+        "# ==============================================================================",
+        "# Agentic Job Applier & Organic Outreach Engine Configuration",
+        "# ==============================================================================",
+        "SMTP_HOST=smtp.gmail.com",
+        "SMTP_PORT=587",
+        "SMTP_USE_TLS=true",
+        "SMTP_USE_SSL=false",
+        f"SMTP_USER={gmail}",
+        f"SMTP_PASSWORD={app_pass}",
+        f"SMTP_FROM_EMAIL={gmail}",
+        f'SMTP_FROM_NAME="{name}"',
+        f"ALERT_RECIPIENT_EMAIL={gmail}",
+        "",
+        "# IMAP Inbound Reply Listener",
+        "IMAP_HOST=imap.gmail.com",
+        "IMAP_PORT=993",
+        "",
+        "# Discord Bot Configuration",
+        f"DISCORD_BOT_TOKEN={bot_token}",
+        f"DISCORD_OWNER_ID={owner_id}",
+        f"DISCORD_WEBHOOK_URL={curr_webhook}",
+        "",
+        "# Job Search Preferences",
+        "JOB_SEARCH_QUERY=Software Engineer",
+        "SCAN_INTERVAL_SECONDS=3600",
+    ]
+
+    with open(env_path, "w", encoding="utf-8") as f:
+        f.write("\n".join(lines) + "\n")
+
+    Config.reload()
+
+    print("\n" + "=" * 68)
+    print("  ✅ CONFIGURATION SAVED TO .env")
+    print("=" * 68)
+
+    # Check for CV
+    cv_file = get_cv_path()
+    if cv_file:
+        print(f"• CV Attachment Detected: {cv_file.name}")
+    else:
+        print("• ⚠️  No CV found yet. Please place your CV (.pdf) into:")
+        print(f"     {Config.DATA_DIR}")
+
+    print("\nQuick verification commands:")
+    print("  • Test your Gmail SMTP: python run.py --test-smtp")
+    print("  • Apply to a job post:  python run.py --paste")
+    if bot_token:
+        print("  • Start Discord Bot:    python run.py --discord-bot")
+    print("=" * 68 + "\n")
+    return True
 
 def handle_paste_smart(to_email_arg: str = "", raw_post_text: str = ""):
     """Smart raw post parser and application dispatcher.
@@ -107,7 +245,8 @@ def handle_paste_smart(to_email_arg: str = "", raw_post_text: str = ""):
     location = parsed.get("location", "Pakistan / Remote")
     tailored_pitch = parsed.get("tailored_pitch", "")
     discovered_emails = parsed.get("discovered_emails", [])
-    subject_line = parsed.get("subject_line", f"Application for {job_title} - Ahmad Faraz")
+    sender_name = getattr(Config, "SMTP_FROM_NAME", "") or "Job Applicant"
+    subject_line = parsed.get("subject_line", f"Application for {job_title} - {sender_name}")
 
     # Recruiter email determination
     to_email = to_email_arg.strip()
@@ -123,8 +262,9 @@ def handle_paste_smart(to_email_arg: str = "", raw_post_text: str = ""):
     # Check deduplication
     already_applied = is_already_applied(recipient_email=to_email, company=company, job_title=job_title)
 
-    cv_path = Config.DATA_DIR / "Ahmad_Faraz_CV.pdf"
-    cv_status = "Available (Attached)" if cv_path.exists() else "Missing!"
+    cv_file = get_cv_path()
+    cv_display = cv_file.name if cv_file else "your_cv.pdf"
+    cv_status = f"Available ({cv_display})" if cv_file else "Missing (add .pdf to data/)"
 
     print("\n" + "=" * 65)
     print("  [+] Extracted Job Intelligence (OUTREACH_GUIDELINES.md Active)")
@@ -137,7 +277,7 @@ def handle_paste_smart(to_email_arg: str = "", raw_post_text: str = ""):
     if len(discovered_emails) > 1:
         print(f"• Other Emails:     {', '.join(discovered_emails[1:])}")
     print(f"• Location:         {location}")
-    print(f"• CV Attachment:    Ahmad_Faraz_CV.pdf ({cv_status})")
+    print(f"• CV Attachment:    {cv_display} ({cv_status})")
     print(f"• Duplicate Guard:  {'[ALREADY APPLIED IN TRACKER]' if already_applied else '[Clean - Never applied before]'}")
     print(f"• Zero-Emoji Rule:  Enforced (No emojis in subject, body, or headers)")
     print("-" * 65)
@@ -148,7 +288,7 @@ def handle_paste_smart(to_email_arg: str = "", raw_post_text: str = ""):
     print(f"Hello {company} team,\n")
     print(tailored_pitch)
     print("\nI'm based in Sargodha and open to discussing remote work or relocation if needed. I've attached my CV for your review and would be glad to talk about how I can contribute if my background is a match.\n")
-    print("Regards,\nAhmad Faraz\nLinkedIn: https://www.linkedin.com/in/ahmad-faraz-/\nGitHub: https://github.com/ahmadfaraz2")
+    print(STANDARD_SIGNATURE_TEXT)
     print("=" * 65)
 
     if already_applied:
@@ -160,7 +300,7 @@ def handle_paste_smart(to_email_arg: str = "", raw_post_text: str = ""):
     action = input("\nSend application email NOW? [Y/n/q=Queue/e=Edit]: ").strip().lower()
 
     if action in ("", "y", "yes"):
-        print(f"\n[Application Engine] Dispatching organic application to {to_email} with Ahmad_Faraz_CV.pdf...")
+        print(f"\n[Application Engine] Dispatching organic application to {to_email} with {cv_display}...")
         result = send_cv_application_email(
             to_email=to_email,
             job_title=job_title,
@@ -287,6 +427,9 @@ async def handle_apply_url(url: str, override_email: str = ""):
         print("[!] No recipient email provided. Aborting application.")
         return
 
+    cv_file = get_cv_path()
+    cv_display = cv_file.name if cv_file else "your_cv.pdf"
+
     print("\n[Application Preview]")
     print("-" * 60)
     preview_body = f"""Hello {company} team,
@@ -295,15 +438,12 @@ I saw the {title} opening at {company} and would like to apply. I'm a Software E
 
 I'm based in Sargodha and open to discussing remote work or relocation if needed. I've attached my CV for your review and would be glad to talk about how I can contribute if my background is a match.
 
-Regards,
-Ahmad Faraz
-LinkedIn: https://www.linkedin.com/in/ahmad-faraz-/
-GitHub: https://github.com/ahmadfaraz2
+{STANDARD_SIGNATURE_TEXT}
 """
     print(preview_body)
     print("-" * 60)
 
-    confirm = input("Dispatch this email with Ahmad_Faraz_CV.pdf attached? [y/N]: ").strip().lower()
+    confirm = input(f"Dispatch this email with {cv_display} attached? [y/N]: ").strip().lower()
     if confirm == "y":
         res = send_cv_application_email(
             to_email=target_email,
@@ -362,10 +502,15 @@ def main():
     print_banner()
 
     parser = argparse.ArgumentParser(
-        description="Ahmad Faraz Job Automation & SMTP Application Engine",
+        description="Agentic Job Applier & Organic Outreach Engine",
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     group = parser.add_mutually_exclusive_group()
+    group.add_argument(
+        "--setup",
+        action="store_true",
+        help="Run the interactive first-time setup wizard to configure Gmail and Discord.",
+    )
     group.add_argument(
         "--scan",
         action="store_true",
@@ -492,6 +637,27 @@ def main():
 
     args = parser.parse_args()
 
+    if args.setup:
+        run_interactive_setup()
+        return
+
+    # Check if this command requires SMTP configuration
+    smtp_exempt_flags = [
+        args.browse,
+        args.linkedin,
+        args.prompt is not None,
+        args.search,
+        args.history,
+        args.tracker,
+        args.reset_db,
+    ]
+    requires_smtp = not any(smtp_exempt_flags)
+
+    if requires_smtp and not Config.is_smtp_configured():
+        configured = show_first_run_guide()
+        if not configured or not Config.is_smtp_configured():
+            return
+
     if args.test_smtp:
         run_smtp_test()
         return
@@ -501,7 +667,9 @@ def main():
         if not recipient:
             print("[!] Please set ALERT_RECIPIENT_EMAIL in .env or pass --to <email>")
             return
-        print(f"\n[Application Engine] Dispatching preview CV application to {recipient}...")
+        cv_file = get_cv_path()
+        cv_name = cv_file.name if cv_file else "your_cv.pdf"
+        print(f"\n[Application Engine] Dispatching preview CV application to {recipient} with {cv_name}...")
         result = send_cv_application_email(
             to_email=recipient,
             job_title="Associate Software Engineer",
@@ -633,8 +801,9 @@ def main():
             print("[!] Error: DISCORD_WEBHOOK_URL is not set in your .env file.")
             print("    Add: DISCORD_WEBHOOK_URL=https://discord.com/api/webhooks/your/webhook/url")
             return
+        sender_name = getattr(Config, "SMTP_FROM_NAME", "") or "Job Outreach"
         success = send_discord_notification(
-            title="🔔 Ahmad Faraz Outreach Bot — Test Alert",
+            title=f"🔔 {sender_name} Outreach Bot — Test Alert",
             description="Your Discord real-time notification integration is active and working properly!",
             fields=[
                 {"name": "Status", "value": "🟢 Connected & Live", "inline": True},
