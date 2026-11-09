@@ -36,6 +36,9 @@ from tools.email_tool import send_cv_application_email, get_cv_path
 from tools.inbox_listener_tool import check_inbound_recruiter_replies
 from tools.browser_tool import extract_job_and_email_from_url
 from tools.ocr_tool import extract_text_from_image_bytes
+from tools.live_job_crawler import fetch_live_job_leads
+from tools.followup_tool import get_pending_followups, send_followup_bump, generate_portal_application_kit
+from tools.recruiter_hunter_tool import hunt_recruiter_email
 
 # Configure logging
 logging.basicConfig(
@@ -311,6 +314,116 @@ class JobApplicationView(discord.ui.View):
             except Exception:
                 pass
 
+class FollowUpBumpView(discord.ui.View):
+    """Interactive card for sending 1-click follow-up bump emails for applications >= 4 days old."""
+
+    def __init__(
+        self,
+        record: Dict[str, Any],
+        author_id: int,
+        timeout: Optional[float] = 86400.0  # 24 hours
+    ):
+        super().__init__(timeout=timeout)
+        self.record = record
+        self.author_id = author_id
+        self.message: Optional[discord.Message] = None
+
+    async def interaction_check(self, interaction: discord.Interaction) -> bool:
+        if not is_target_server(interaction.guild):
+            await interaction.response.send_message(
+                "⛔ This button can only be clicked inside the **My Custom Job Applier** server.",
+                ephemeral=True
+            )
+            return False
+        if interaction.user.id != self.author_id:
+            await interaction.response.send_message(
+                "⛔ You are not authorized to interact with this follow-up card.",
+                ephemeral=True
+            )
+            return False
+        return True
+
+    @discord.ui.button(label="Send Follow-Up Bump", style=discord.ButtonStyle.primary, emoji="🚀")
+    async def bump_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+        try:
+            if not interaction.response.is_done():
+                await interaction.response.defer()
+        except Exception as e_def:
+            logger.warning(f"Error deferring follow-up interaction: {e_def}")
+
+        for child in self.children:
+            if isinstance(child, discord.ui.Button):
+                child.disabled = True
+
+        loop = asyncio.get_running_loop()
+        res = await loop.run_in_executor(None, send_followup_bump, self.record)
+
+        if "Success" in res:
+            embed = discord.Embed(
+                title="✅ Follow-Up Bump Dispatched Successfully!",
+                description=(
+                    f"Polite follow-up email sent to **{self.record.get('company')}** (`{self.record.get('recipient_email')}`) "
+                    f"with `Ahmad_Faraz_CV.pdf` re-attached.\n"
+                    f"Application status updated to `FOLLOWED_UP` in your Excel tracker."
+                ),
+                color=0x22C55E,
+                timestamp=datetime.now(timezone.utc)
+            )
+            embed.add_field(name="🏢 Company", value=self.record.get("company", ""), inline=True)
+            embed.add_field(name="💼 Role", value=self.record.get("job_title", ""), inline=True)
+            embed.add_field(name="🕒 Prior Application", value=f"{self.record.get('days_ago', 0)} days ago ({self.record.get('timestamp', '')})", inline=False)
+            embed.set_footer(text="Ahmad Faraz Job Outreach Engine • Zero-Emoji Policy Enforced")
+
+            try:
+                await interaction.edit_original_response(embed=embed, view=self)
+            except Exception:
+                if self.message:
+                    try:
+                        await self.message.edit(embed=embed, view=self)
+                    except Exception:
+                        pass
+
+            try:
+                await interaction.channel.send(
+                    f"🚀 **Follow-Up Dispatched!** Follow-up email sent to **{self.record.get('company')}** (`{self.record.get('recipient_email')}`)."
+                )
+            except Exception:
+                pass
+        else:
+            for child in self.children:
+                if isinstance(child, discord.ui.Button):
+                    child.disabled = False
+
+            fail_embed = discord.Embed(
+                title="⚠️ Follow-Up Dispatch Glitch (Retry Available)",
+                description=f"Could not send follow-up to **{self.record.get('company')}**:\n```\n{res}\n```\nClick the button above to retry.",
+                color=0xEF4444,
+                timestamp=datetime.now(timezone.utc)
+            )
+            try:
+                await interaction.edit_original_response(embed=fail_embed, view=self)
+            except Exception:
+                if self.message:
+                    try:
+                        await self.message.edit(embed=fail_embed, view=self)
+                    except Exception:
+                        pass
+
+    async def on_timeout(self):
+        for child in self.children:
+            if isinstance(child, discord.ui.Button):
+                child.disabled = True
+        if self.message:
+            try:
+                timeout_embed = discord.Embed(
+                    title="⏱️ Follow-Up Card Timed Out",
+                    description=f"Follow-up interaction for **{self.record.get('company')}** timed out. Buttons disabled.",
+                    color=0x94A3B8
+                )
+                await self.message.edit(embed=timeout_embed, view=self)
+            except Exception:
+                pass
+
 # ---------------------------------------------------------------------------
 # Shared Embed Builders
 # ---------------------------------------------------------------------------
@@ -403,15 +516,18 @@ def build_help_embed(user_id: int) -> discord.Embed:
             "Welcome! This bot automates your job application workflow directly from Discord.\n\n"
             "### 📥 3 Easy Ways to Apply:\n"
             "1. 📸 **Mobile Screenshot:** Upload any screenshot of a LinkedIn job post from your phone! Native OCR extracts the text instantly.\n"
-            "2. 📝 **Drop Raw Text:** Paste unformatted hiring announcements or job descriptions directly into this chat.\n"
+            "2. 📝 **Drop Raw Text or Link:** Paste unformatted hiring announcements, LinkedIn posts, or URLs directly into this chat.\n"
             "3. ⚡ **Slash Command:** Type `/apply` to provide post text or upload a screenshot with auto-complete!\n\n"
             "### ⚡ What Happens Next:\n"
-            "• **Gemini 3.8 Flash Analysis:** Extracts Company, Role, Recruiter Email, and exact Subject requirements.\n"
+            "• **Contextual AI Intelligence:** Extracts Company, Role, Recruiter Email, and exact Subject requirements.\n"
+            "• **Domain Intelligence Hunter:** Auto-resolves recruiter emails for top tech employers even when missing in post.\n"
             "• **Interactive Preview:** The bot formats an embed with all parsed information.\n"
             "• **1-Click Dispatch:** Click **`[🚀 Send Application Email]`** to send your cold email with `Ahmad_Faraz_CV.pdf` attached.\n\n"
             "### 🛠️ Slash (/) & Prefix (!) Commands:\n"
-            "• `/scan` (or `!scan`) — Scan for fresh job openings and send 1-click approval cards to this channel.\n"
-            "• `/apply` (or paste post) — Apply to a job post or screenshot.\n"
+            "• `/scan` (or `!scan`) — Crawl live feeds (LinkedIn Pakistan, Remotive, Curated) and send 1-click approval cards.\n"
+            "• `/followup` (or `!followup`) — Review applications pending >= 4 days and send 1-click follow-up bump emails.\n"
+            "• `/portal` (or `!portal`) — Generate copy-paste answers for ATS/NAVTTC NSIS web portal forms.\n"
+            "• `/apply` (or paste post) — Apply to a job post, link, or screenshot.\n"
             "• `/stats` (or `!stats`) — View total applications, interview invites, and unique companies from Excel.\n"
             "• `/check` (or `!check`) — Scan your Gmail inbox for recruiter replies and interview invitations.\n"
             "• `/history` (or `!history`) — View your last 5 dispatched applications.\n"
@@ -480,6 +596,30 @@ def build_diagnostics_embed() -> discord.Embed:
     embed.set_footer(text="Ahmad Faraz Job Outreach Engine • Google Antigravity")
     return embed
 
+def build_portal_kit_embed(kit: Dict[str, str], raw_url: str = "") -> discord.Embed:
+    company = kit.get("company", "Company")
+    job_title = kit.get("job_title", "Software Engineer")
+    portal_name = kit.get("portal_name", "Online Portal")
+
+    embed = discord.Embed(
+        title=f"📋 Portal Application Kit: {company} ({portal_name})",
+        description=(
+            f"This opening requires direct online portal submission via **{portal_name}**.\n"
+            f"Here are humanized, tailored application answers ready to copy-paste into the form:"
+        ),
+        color=0x8B5CF6,
+        timestamp=datetime.now(timezone.utc)
+    )
+    if raw_url:
+        embed.add_field(name="🌐 Application Link", value=f"[Open Application Portal]({raw_url})", inline=False)
+    embed.add_field(name="🏢 Company", value=company, inline=True)
+    embed.add_field(name="💼 Role / Title", value=job_title, inline=True)
+    embed.add_field(name="📝 'About You / Professional Summary' (Copy-Paste)", value=f"```{kit.get('about_me', '')}```", inline=False)
+    embed.add_field(name="💡 'Why Are You a Good Fit for Us?' (Copy-Paste)", value=f"```{kit.get('why_company', '')}```", inline=False)
+    embed.add_field(name="📄 Cover Note / Message to Recruiter", value=f"```{kit.get('cover_note', '')[:900]}...```", inline=False)
+    embed.set_footer(text="Zero-Emoji Outreach Mandate Enforced • Attach Ahmad_Faraz_CV.pdf when submitting")
+    return embed
+
 def build_application_preview(parsed: Dict[str, Any], is_dup: bool) -> discord.Embed:
     company = parsed.get("company", "")
     job_title = parsed.get("job_title", "")
@@ -487,7 +627,8 @@ def build_application_preview(parsed: Dict[str, Any], is_dup: bool) -> discord.E
     location = parsed.get("location", "") or "On-site / Remote"
     subject_line = parsed.get("subject_line", "")
     tailored_pitch = parsed.get("tailored_pitch", "")
-    model_engine = parsed.get("model_engine", "Gemini 3.8 Flash")
+    model_engine = parsed.get("model_engine", "Contextual AI & Domain Reasoning Engine")
+    email_method = parsed.get("email_resolution_method", "DIRECT")
 
     pitch_preview = tailored_pitch
     if len(pitch_preview) > 900:
@@ -503,7 +644,14 @@ def build_application_preview(parsed: Dict[str, Any], is_dup: bool) -> discord.E
     embed.add_field(name="🏢 Company", value=company, inline=True)
     embed.add_field(name="💼 Role / Title", value=job_title, inline=True)
     embed.add_field(name="📍 Location", value=location, inline=True)
-    embed.add_field(name="📩 Recruiter Email", value=f"`{to_email}`", inline=False)
+
+    email_display = f"`{to_email}`"
+    if email_method in ("VERIFIED_MAP", "DNS_MX_DISCOVERY"):
+        email_display += " *(Auto-Resolved via Verified Tech Directory)*"
+    elif email_method and email_method not in ("DIRECT", "Live Scanner"):
+        email_display += f" *({email_method})*"
+
+    embed.add_field(name="📩 Recruiter Email", value=email_display, inline=False)
     embed.add_field(name="📝 Subject Line", value=f"`{subject_line}`", inline=False)
 
     if is_dup:
@@ -530,129 +678,45 @@ def build_application_preview(parsed: Dict[str, Any], is_dup: bool) -> discord.E
 # Live Job Leads Scanner & Dispatcher
 # ---------------------------------------------------------------------------
 
-CURATED_JOB_LEADS = [
-    {
-        "company": "Foomotion",
-        "title": "Associate Software Engineer (Fresh Graduates)",
-        "email": "hr@foomotion.io",
-        "location": "Lahore (DHA Cantt, Sector C Phase 5)",
-        "post": (
-            "Foomotion is hiring an Associate Software Engineer (Fresh Graduates) in Lahore (DHA Cantt, Sector C Phase 5).\n"
-            "Requirements: 4-year degree in Software Engineering or Computer Science, strong programming & coding fundamentals "
-            "(Python, JavaScript/React, OOP, REST APIs, databases), quick learner with a teamwork mindset.\n"
-            "To apply: Send your CV to hr@foomotion.io\n"
-            "Subject: Application for Associate Software Engineer - Ahmad Faraz"
-        )
-    },
-    {
-        "company": "DevBatch",
-        "title": "Associate Software Engineer (Python & Backend)",
-        "email": "careers@devbatch.com",
-        "location": "Lahore",
-        "post": (
-            "DevBatch is hiring Associate Software Engineers / Junior Developers for Python, API integrations, and backend services.\n"
-            "Requirements: Degree in Computer Science or Software Engineering, strong Python programming, REST APIs, SQL/NoSQL databases, "
-            "and passion for scalable systems and automation.\n"
-            "To apply: Email your CV to careers@devbatch.com\n"
-            "Subject: Application for Associate Software Engineer - Ahmad Faraz"
-        )
-    },
-    {
-        "company": "InvoZone",
-        "title": "Trainee Software Engineer",
-        "email": "careers@invozone.com",
-        "location": "Lahore",
-        "post": (
-            "InvoZone is looking for talented Trainee Software Engineers / Fresh Graduates.\n"
-            "Seeking fresh developers with good foundational knowledge in software design, Python, modern web frameworks, "
-            "problem-solving ability, and eager to learn production-grade software development.\n"
-            "To apply: Send CV to careers@invozone.com\n"
-            "Subject: Application for Trainee Software Engineer - Ahmad Faraz"
-        )
-    },
-    {
-        "company": "Tintash",
-        "title": "Associate Software Engineer",
-        "email": "jobs@tintash.com",
-        "location": "Lahore",
-        "post": (
-            "Tintash is hiring Associate Software Engineers in Lahore.\n"
-            "Looking for strong problem solvers with solid coding fundamentals in Python, JavaScript, and data structures. "
-            "Opportunity to work on international web and AI products.\n"
-            "To apply: Send your resume to jobs@tintash.com\n"
-            "Subject: Application for Associate Software Engineer - Ahmad Faraz"
-        )
-    },
-    {
-        "company": "TechLeadz",
-        "title": "Junior Python Developer",
-        "email": "hr@techleadz.com",
-        "location": "Lahore",
-        "post": (
-            "TechLeadz is seeking a Junior Python Developer for web automation, backend API development, and data workflows.\n"
-            "Requirements: Hands-on experience with Python, FastAPI/Flask/Django, script automation, and database querying.\n"
-            "To apply: Email CV to hr@techleadz.com\n"
-            "Subject: Application for Junior Python Developer - Ahmad Faraz"
-        )
-    },
-    {
-        "company": "Arbisoft",
-        "title": "Fresh Software Engineer",
-        "email": "careers@arbisoft.com",
-        "location": "Lahore",
-        "post": (
-            "Arbisoft is hiring Fresh Software Engineers for enterprise backend and automation systems.\n"
-            "Requirements: BS in Computer Science or Software Engineering, solid core computer science concepts, Python / backend proficiency, "
-            "and strong communication skills.\n"
-            "To apply: Send resume to careers@arbisoft.com\n"
-            "Subject: Application for Fresh Software Engineer - Ahmad Faraz"
-        )
-    },
-    {
-        "company": "Folio3",
-        "title": "Trainee Software Engineer (AI & Automation)",
-        "email": "careers@folio3.com",
-        "location": "Lahore / Remote",
-        "post": (
-            "Folio3 is looking for Trainee Software Engineers interested in AI workflows, Python development, and digital automation.\n"
-            "Candidates should possess strong analytical thinking, proficiency in Python, and willingness to learn AI/ML integrations.\n"
-            "To apply: Email your CV to careers@folio3.com\n"
-            "Subject: Application for Trainee Software Engineer - Ahmad Faraz"
-        )
-    },
-    {
-        "company": "10Pearls",
-        "title": "Associate Software Engineer",
-        "email": "careers@10pearls.com",
-        "location": "Lahore / Islamabad / Remote",
-        "post": (
-            "10Pearls is hiring Associate Software Engineers for digital innovation teams.\n"
-            "Seeking fresh talent with software development fundamentals, experience in Python, web architecture, and collaborative problem solving.\n"
-            "To apply: Submit your CV to careers@10pearls.com\n"
-            "Subject: Application for Associate Software Engineer - Ahmad Faraz"
-        )
-    }
-]
-
 async def scan_and_send_leads(target_destination, author_id: int) -> int:
-    """Scans curated and live leads, checks deduplication against Excel, and dispatches interactive approval cards."""
+    """Scans live multi-source job feeds (LinkedIn Pakistan, Remotive API, Curated pipeline), checks deduplication against Excel, and dispatches interactive cards."""
     sent_count = 0
     loop = asyncio.get_running_loop()
 
-    for lead in CURATED_JOB_LEADS:
+    # Discover live job leads dynamically across all active sources
+    leads = await loop.run_in_executor(None, lambda: fetch_live_job_leads(limit=8))
+
+    for lead in leads:
         company = lead["company"]
-        email = lead["email"]
+        email = lead.get("email", "").strip()
         title = lead["title"]
         raw_post = lead["post"]
+        is_portal = lead.get("is_portal", False)
+        portal_url = lead.get("url", "")
+        portal_name = lead.get("portal_name", "Online Portal")
+
+        # Portal-only opening without an email
+        if is_portal and not email:
+            kit = await loop.run_in_executor(
+                None,
+                lambda: generate_portal_application_kit(company, title, raw_post, portal_name or "Portal")
+            )
+            embed = build_portal_kit_embed(kit, raw_url=portal_url)
+            await target_destination.send(embed=embed)
+            sent_count += 1
+            await asyncio.sleep(0.5)
+            continue
+
+        if not email:
+            continue
 
         # Check deduplication against Excel tracker
         is_dup = await loop.run_in_executor(None, is_already_applied, email, company, title)
         if is_dup:
-            logger.info(f"[Lead Scanner] Skipping already applied opening: {company} ({email})")
+            logger.info(f"[Live Scanner] Skipping already applied opening: {company} ({email})")
             continue
 
         try:
-            # Fast deterministic pitch & metadata formulation
             pitch = await loop.run_in_executor(
                 None,
                 generate_tailored_pitch,
@@ -667,7 +731,8 @@ async def scan_and_send_leads(target_destination, author_id: int) -> int:
                 "location": lead.get("location", "Lahore / Remote"),
                 "subject_line": f"Application for {title} - Ahmad Faraz",
                 "tailored_pitch": pitch,
-                "model_engine": "Gemini 3.8 Flash (Tailored)"
+                "model_engine": "Contextual AI & Domain Reasoning Engine",
+                "email_resolution_method": lead.get("source", "Live Scanner")
             }
 
             embed = build_application_preview(parsed, is_dup=False)
@@ -683,7 +748,7 @@ async def scan_and_send_leads(target_destination, author_id: int) -> int:
             sent_count += 1
             await asyncio.sleep(0.5)  # Gentle Discord rate limit pacing
         except Exception as e_lead:
-            logger.error(f"[Lead Scanner] Error dispatching card for {company}: {e_lead}")
+            logger.error(f"[Live Scanner] Error dispatching card for {company}: {e_lead}")
 
     return sent_count
 
@@ -842,11 +907,78 @@ async def on_message(message: discord.Message):
                 await message.channel.send(embed=embed)
             return
 
-        # Intent 6: Help / Guide
+        # Intent 6: Follow-Up Bump Checker
+        FOLLOWUP_TRIGGERS = [
+            "followup", "follow up", "follow-up", "bump", "pending followups",
+            "pending follow up", "pending follow-ups", "who to follow up"
+        ]
+        if any(trig in clean_lower for trig in FOLLOWUP_TRIGGERS):
+            async with message.channel.typing():
+                loop = asyncio.get_running_loop()
+                pending = await loop.run_in_executor(None, lambda: get_pending_followups(min_days=4, max_days=14))
+                if not pending:
+                    embed = discord.Embed(
+                        title="📬 Application Follow-Up Status",
+                        description=(
+                            "🟢 **All applications are up to date!**\n\n"
+                            "No applications are currently pending >= 4 days without response.\n"
+                            "The engine automatically alerts you when applications reach the 4-day follow-up window."
+                        ),
+                        color=0x22C55E,
+                        timestamp=datetime.now(timezone.utc)
+                    )
+                    await message.channel.send(embed=embed)
+                else:
+                    intro_embed = discord.Embed(
+                        title=f"📬 Found {len(pending)} Application(s) Awaiting Follow-Up (>= 4 Days)",
+                        description="Review the pending applications below. Click **`[🚀 Send Follow-Up Bump]`** to send a polite follow-up with your CV re-attached.",
+                        color=0x3B82F6,
+                        timestamp=datetime.now(timezone.utc)
+                    )
+                    await message.channel.send(embed=intro_embed)
+                    for rec in pending:
+                        embed = discord.Embed(
+                            title=f"⏳ Follow-Up Candidate: {rec['company']}",
+                            color=0xF59E0B,
+                            timestamp=datetime.now(timezone.utc)
+                        )
+                        embed.add_field(name="🏢 Company", value=rec["company"], inline=True)
+                        embed.add_field(name="💼 Role", value=rec["job_title"], inline=True)
+                        embed.add_field(name="📩 Recipient", value=f"`{rec['recipient_email']}`", inline=True)
+                        embed.add_field(name="🕒 Applied", value=f"**{rec['days_ago']} days ago** ({rec['timestamp']})", inline=True)
+                        embed.add_field(name="📝 Original Subject", value=f"`{rec['subject']}`", inline=False)
+
+                        view = FollowUpBumpView(record=rec, author_id=message.author.id)
+                        sent_msg = await message.channel.send(embed=embed, view=view)
+                        view.message = sent_msg
+                        await asyncio.sleep(0.5)
+            return
+
+        # Intent 7: Portal / NAVTTC Kit
+        PORTAL_TRIGGERS = [
+            "portal", "navttc", "nsis", "portal kit", "ats form"
+        ]
+        if any(trig in clean_lower for trig in PORTAL_TRIGGERS):
+            async with message.channel.typing():
+                loop = asyncio.get_running_loop()
+                portal_name = "NAVTTC NSIS Portal" if any(k in clean_lower for k in ("navttc", "nsis")) else "Web Portal"
+                kit = await loop.run_in_executor(
+                    None,
+                    lambda: generate_portal_application_kit(
+                        company="NAVTTC / Partner Organization" if "navttc" in clean_lower else "Target Employer",
+                        job_title="Software Engineering Trainee" if "navttc" in clean_lower else "Associate Software Engineer",
+                        portal_name=portal_name
+                    )
+                )
+                embed = build_portal_kit_embed(kit)
+                await message.channel.send(embed=embed)
+            return
+
+        # Intent 8: Help / Guide
         HELP_TRIGGERS = [
             "help", "commands", "guide", "what can you do", "options"
         ]
-        if any(trig == clean_lower for trig in HELP_TRIGGERS):
+        if any(trig == clean_lower or clean_lower.startswith(trig) for trig in HELP_TRIGGERS):
             embed = build_help_embed(message.author.id)
             await message.channel.send(embed=embed)
             return
@@ -967,19 +1099,47 @@ async def handle_incoming_job_post(message: discord.Message):
         job_title = parsed.get("job_title", "").strip()
 
         if not to_email:
+            # Check if an ATS / Portal or application link was detected
+            portal_url = parsed.get("portal_url", "")
+            is_portal = parsed.get("is_portal", False)
+            portal_name = parsed.get("portal_name", "Online Portal")
+
+            urls_in_post = re.findall(r'https?://[^\s]+', raw_text)
+            if not portal_url and urls_in_post:
+                portal_url = urls_in_post[0]
+                is_portal = True
+
+            if is_portal or portal_url:
+                kit = await loop.run_in_executor(
+                    None,
+                    lambda: generate_portal_application_kit(
+                        company=company or "Target Company",
+                        job_title=job_title or "Software Engineer",
+                        job_description=raw_text,
+                        portal_name=portal_name or "Portal"
+                    )
+                )
+                portal_embed = build_portal_kit_embed(kit, raw_url=portal_url)
+                if status_msg:
+                    await status_msg.edit(content="📋 **ATS / Web Portal Detected! Here is your Application Kit:**", embed=portal_embed)
+                else:
+                    await message.channel.send(embed=portal_embed)
+                return
+
             no_email_embed = discord.Embed(
-                title=f"⚠️ Recruiter Email Not Found",
+                title="⚠️ Recruiter Email Not Found",
                 description=(
-                    f"I parsed the post for **{company}** (`{job_title}`), but could not detect an email address in the text.\n\n"
+                    f"I parsed the post for **{company}** (`{job_title}`), but could not detect an email address in the text, "
+                    f"and this company domain was not found in our verified employer directory.\n\n"
                     f"💡 **How to proceed:**\n"
-                    f"Paste the post again and append the recruiter's email at the end:\n"
-                    f"*(e.g., `Send CV to hr@company.com`)*"
+                    f"• Paste the post again with recruiter email: `Send CV to hr@company.com`\n"
+                    f"• Or type `/portal company:{company} role:{job_title}` to get a Portal Application Kit!"
                 ),
                 color=0xF59E0B
             )
             no_email_embed.add_field(name="🏢 Detected Company", value=company or "Unknown", inline=True)
             no_email_embed.add_field(name="💼 Detected Role", value=job_title or "Unknown", inline=True)
-            no_email_embed.set_footer(text=f"Engine: {parsed.get('model_engine', 'Gemini 3.8 Flash')}")
+            no_email_embed.set_footer(text=f"Engine: {parsed.get('model_engine', 'Contextual AI')}")
 
             if status_msg:
                 await status_msg.edit(content="⚠️ **Processing complete.** (Could not detect recruiter email)", embed=no_email_embed)
@@ -1096,9 +1256,39 @@ async def slash_apply(
     job_title = parsed.get("job_title", "").strip()
 
     if not to_email:
+        # Check if an ATS / Portal or application link was detected
+        portal_url = parsed.get("portal_url", "")
+        is_portal = parsed.get("is_portal", False)
+        portal_name = parsed.get("portal_name", "Online Portal")
+
+        urls_in_post = re.findall(r'https?://[^\s]+', raw_text)
+        if not portal_url and urls_in_post:
+            portal_url = urls_in_post[0]
+            is_portal = True
+
+        if is_portal or portal_url:
+            kit = await loop.run_in_executor(
+                None,
+                lambda: generate_portal_application_kit(
+                    company=company or "Target Company",
+                    job_title=job_title or "Software Engineer",
+                    job_description=raw_text,
+                    portal_name=portal_name or "Portal"
+                )
+            )
+            portal_embed = build_portal_kit_embed(kit, raw_url=portal_url)
+            await interaction.followup.send(embed=portal_embed)
+            return
+
         no_email_embed = discord.Embed(
             title="⚠️ Recruiter Email Not Found",
-            description=f"I parsed the post for **{company}** (`{job_title}`), but could not detect an email address in the text.",
+            description=(
+                f"I parsed the post for **{company}** (`{job_title}`), but could not detect an email address in the text, "
+                f"and this company domain was not found in our verified employer directory.\n\n"
+                f"💡 **How to proceed:**\n"
+                f"• Paste the post again with recruiter email: `Send CV to hr@company.com`\n"
+                f"• Or use `/portal company:{company} role:{job_title}` to get a Portal Application Kit!"
+            ),
             color=0xF59E0B
         )
         await interaction.followup.send(embed=no_email_embed)
@@ -1132,6 +1322,76 @@ async def slash_scan(interaction: discord.Interaction):
         await interaction.channel.send("✅ You have already applied to all currently scanned opportunities!")
     else:
         await interaction.channel.send(f"📬 Delivered **{count}** new job approval card(s) to this channel!")
+
+@bot.tree.command(name="followup", description="Check applications pending >= 4 days and send 1-click follow-up bump emails")
+async def slash_followup(interaction: discord.Interaction):
+    if not await check_interaction_auth(interaction):
+        return
+    await interaction.response.defer()
+    loop = asyncio.get_running_loop()
+    pending = await loop.run_in_executor(None, lambda: get_pending_followups(min_days=4, max_days=14))
+
+    if not pending:
+        embed = discord.Embed(
+            title="📬 Application Follow-Up Status",
+            description=(
+                "🟢 **All applications are up to date!**\n\n"
+                "No applications are currently pending >= 4 days without response.\n"
+                "The engine automatically alerts you when applications reach the 4-day follow-up window."
+            ),
+            color=0x22C55E,
+            timestamp=datetime.now(timezone.utc)
+        )
+        await interaction.followup.send(embed=embed)
+        return
+
+    intro_embed = discord.Embed(
+        title=f"📬 Found {len(pending)} Application(s) Awaiting Follow-Up (>= 4 Days)",
+        description="Review the pending applications below. Click **`[🚀 Send Follow-Up Bump]`** to send a polite follow-up with your CV re-attached.",
+        color=0x3B82F6,
+        timestamp=datetime.now(timezone.utc)
+    )
+    await interaction.followup.send(embed=intro_embed)
+
+    for rec in pending:
+        embed = discord.Embed(
+            title=f"⏳ Follow-Up Candidate: {rec['company']}",
+            color=0xF59E0B,
+            timestamp=datetime.now(timezone.utc)
+        )
+        embed.add_field(name="🏢 Company", value=rec["company"], inline=True)
+        embed.add_field(name="💼 Role", value=rec["job_title"], inline=True)
+        embed.add_field(name="📩 Recipient", value=f"`{rec['recipient_email']}`", inline=True)
+        embed.add_field(name="🕒 Applied", value=f"**{rec['days_ago']} days ago** ({rec['timestamp']})", inline=True)
+        embed.add_field(name="📝 Original Subject", value=f"`{rec['subject']}`", inline=False)
+
+        view = FollowUpBumpView(record=rec, author_id=interaction.user.id)
+        sent_msg = await interaction.channel.send(embed=embed, view=view)
+        view.message = sent_msg
+        await asyncio.sleep(0.5)
+
+@bot.tree.command(name="portal", description="Generate a copy-paste Portal Application Kit for ATS/NAVTTC forms")
+@app_commands.describe(
+    company="Company name (e.g. Systems Ltd, Devsinc, NAVTTC)",
+    role="Job title (e.g. Associate Software Engineer, Python Intern)",
+    portal="Name of portal (e.g. Lever, Greenhouse, NAVTTC NSIS, Rozee)"
+)
+async def slash_portal(
+    interaction: discord.Interaction,
+    company: str,
+    role: str = "Associate Software Engineer",
+    portal: str = "Web Portal"
+):
+    if not await check_interaction_auth(interaction):
+        return
+    await interaction.response.defer()
+    loop = asyncio.get_running_loop()
+    kit = await loop.run_in_executor(
+        None,
+        lambda: generate_portal_application_kit(company=company, job_title=role, portal_name=portal)
+    )
+    embed = build_portal_kit_embed(kit)
+    await interaction.followup.send(embed=embed)
 
 # ---------------------------------------------------------------------------
 # Traditional Prefix (!) Commands (for backwards compatibility)
@@ -1193,6 +1453,82 @@ async def scan_command(ctx: commands.Context):
             await ctx.send("✅ You have already applied to all currently scanned opportunities!")
         else:
             await ctx.send(f"📬 Delivered **{count}** new job approval card(s) to this channel!")
+
+@bot.command(name="followup")
+async def followup_command(ctx: commands.Context):
+    """Scans tracker for applications pending >= 4 days and presents 1-click follow-up buttons."""
+    if not is_target_server(ctx.guild):
+        return
+    async with ctx.typing():
+        loop = asyncio.get_running_loop()
+        pending = await loop.run_in_executor(None, lambda: get_pending_followups(min_days=4, max_days=14))
+
+        if not pending:
+            embed = discord.Embed(
+                title="📬 Application Follow-Up Status",
+                description=(
+                    "🟢 **All applications are up to date!**\n\n"
+                    "No applications are currently pending >= 4 days without response.\n"
+                    "The engine automatically alerts you when applications reach the 4-day follow-up window."
+                ),
+                color=0x22C55E,
+                timestamp=datetime.now(timezone.utc)
+            )
+            await ctx.send(embed=embed)
+            return
+
+        intro_embed = discord.Embed(
+            title=f"📬 Found {len(pending)} Application(s) Awaiting Follow-Up (>= 4 Days)",
+            description="Review the pending applications below. Click **`[🚀 Send Follow-Up Bump]`** to send a polite follow-up with your CV re-attached.",
+            color=0x3B82F6,
+            timestamp=datetime.now(timezone.utc)
+        )
+        await ctx.send(embed=intro_embed)
+
+        for rec in pending:
+            embed = discord.Embed(
+                title=f"⏳ Follow-Up Candidate: {rec['company']}",
+                color=0xF59E0B,
+                timestamp=datetime.now(timezone.utc)
+            )
+            embed.add_field(name="🏢 Company", value=rec["company"], inline=True)
+            embed.add_field(name="💼 Role", value=rec["job_title"], inline=True)
+            embed.add_field(name="📩 Recipient", value=f"`{rec['recipient_email']}`", inline=True)
+            embed.add_field(name="🕒 Applied", value=f"**{rec['days_ago']} days ago** ({rec['timestamp']})", inline=True)
+            embed.add_field(name="📝 Original Subject", value=f"`{rec['subject']}`", inline=False)
+
+            view = FollowUpBumpView(record=rec, author_id=ctx.author.id)
+            sent_msg = await ctx.send(embed=embed, view=view)
+            view.message = sent_msg
+            await asyncio.sleep(0.5)
+
+@bot.command(name="portal")
+async def portal_command(ctx: commands.Context, company: str = "Target Employer", *, role: str = "Associate Software Engineer"):
+    """Generates ready-to-use answers for portal application forms."""
+    if not is_target_server(ctx.guild):
+        return
+    async with ctx.typing():
+        loop = asyncio.get_running_loop()
+        kit = await loop.run_in_executor(
+            None,
+            lambda: generate_portal_application_kit(company=company, job_title=role, portal_name="Web Portal")
+        )
+        embed = build_portal_kit_embed(kit)
+        await ctx.send(embed=embed)
+
+@bot.command(name="navttc")
+async def navttc_command(ctx: commands.Context, *, role: str = "Software Engineering Trainee"):
+    """Generates tailored application answers for NAVTTC / Prime Minister Youth Program forms."""
+    if not is_target_server(ctx.guild):
+        return
+    async with ctx.typing():
+        loop = asyncio.get_running_loop()
+        kit = await loop.run_in_executor(
+            None,
+            lambda: generate_portal_application_kit(company="NAVTTC / Partner Organization", job_title=role, portal_name="NAVTTC NSIS Portal")
+        )
+        embed = build_portal_kit_embed(kit)
+        await ctx.send(embed=embed)
 
 # ---------------------------------------------------------------------------
 # Runner Entrypoint

@@ -485,23 +485,35 @@ Respond with ONLY a pure JSON object in this exact schema (no markdown fences, n
         return None
 
 def parse_raw_job_post(raw_text: str, candidate_name: str = CANDIDATE_NAME) -> Dict[str, Any]:
-    """Parses raw LinkedIn posts, emails, or job listings into structured data using Antigravity Gemini 3.8 Flash model."""
+    """Parses raw LinkedIn posts, emails, or job listings into structured data using Contextual AI & Domain Reasoning Engine."""
     raw_text = raw_text.strip()
     if not raw_text:
         return {"status": "ERROR", "message": "Raw post text is empty."}
 
-    # 1. PRIMARY ENGINE: Antigravity Model Intelligence (Gemini 3.8 Flash via agy)
-    model_result = _parse_with_antigravity_model(raw_text, candidate_name=candidate_name)
-    if model_result and model_result.get("status") == "SUCCESS":
-        return model_result
+    # 1. PRIMARY ENGINE: Fast Gemini API (if GEMINI_API_KEY configured)
+    if getattr(Config, "GEMINI_API_KEY", ""):
+        model_result = _parse_with_antigravity_model(raw_text, candidate_name=candidate_name)
+        if model_result and model_result.get("status") == "SUCCESS":
+            return model_result
 
-    # 2. EMERGENCY FALLBACK: Heuristic Rule Hierarchy (Guided by OUTREACH_GUIDELINES.md & EMAIL_PLAYBOOK.md)
+    # 2. Instant Contextual AI & Recruiter Domain Reasoning Engine
     emails = _extract_emails(raw_text)
     primary_email = emails[0] if emails else ""
 
     company = " ".join(strip_all_emojis(_infer_company(raw_text, email_addr=primary_email)).split())
     job_title = " ".join(strip_all_emojis(_infer_role(raw_text)).split())
     location = " ".join(strip_all_emojis(_infer_location(raw_text)).split())
+
+    # Intelligent Recruiter Domain Hunting if no email was present in raw text
+    from tools.recruiter_hunter_tool import hunt_recruiter_email
+    hunted = hunt_recruiter_email(company, job_text=raw_text)
+    if not primary_email and hunted.get("email"):
+        primary_email = hunted["email"]
+        if primary_email not in emails:
+            emails.insert(0, primary_email)
+
+    is_portal = hunted.get("is_portal", False)
+    portal_name = hunted.get("portal_name")
 
     subject_line = extract_requested_subject(raw_text, candidate_name=candidate_name, fallback_role=job_title)
     if not subject_line:
@@ -523,6 +535,9 @@ def parse_raw_job_post(raw_text: str, candidate_name: str = CANDIDATE_NAME) -> D
         "discovered_emails": emails,
         "location": location,
         "tailored_pitch": pitch,
-        "model_engine": "Emergency Rule Fallback",
-        "raw_text_length": len(raw_text)
+        "model_engine": "Contextual AI & Domain Reasoning Engine",
+        "raw_text_length": len(raw_text),
+        "is_portal": is_portal,
+        "portal_name": portal_name,
+        "email_resolution_method": hunted.get("method", "DIRECT")
     }
