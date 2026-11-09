@@ -70,6 +70,7 @@ class Config:
     SMTP_FROM_NAME: str = os.getenv("SMTP_FROM_NAME", "Ahmad Faraz")
     SENDER_PHONE: str = os.getenv("SENDER_PHONE", "")
     ALERT_RECIPIENT_EMAIL: str = os.getenv("ALERT_RECIPIENT_EMAIL", "")
+    BCC_SELF: bool = _get_bool("BCC_SELF", True)
 
     # IMAP Inbox Listener Settings
     IMAP_HOST: str = os.getenv("IMAP_HOST", "imap.gmail.com")

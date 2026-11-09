@@ -19,9 +19,9 @@ logger = logging.getLogger(__name__)
 # Verified Tech Employer Inboxes (Lahore, Islamabad, Karachi, Remote)
 VERIFIED_TECH_EMPLOYERS = {
     "devsinc": "careers@devsinc.com",
-    "systems limited": "talent.acquisition@systemsltd.com",
-    "systems ltd": "talent.acquisition@systemsltd.com",
-    "systemsltd": "talent.acquisition@systemsltd.com",
+    "systems limited": "careers@systemsltd.com",
+    "systems ltd": "careers@systemsltd.com",
+    "systemsltd": "careers@systemsltd.com",
     "10pearls": "careers@10pearls.com",
     "arbisoft": "careers@arbisoft.com",
     "tintash": "jobs@tintash.com",

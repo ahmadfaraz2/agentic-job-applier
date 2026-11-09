@@ -234,6 +234,7 @@ def update_excel_recruiter_status(
             "ASSESSMENT": ("FEF3C7", "B45309"),       # Amber
             "INQUIRY": ("E0F2FE", "0369A1"),          # Cyan
             "REJECTION": ("F1F5F9", "64748B"),        # Slate
+            "BOUNCED": ("FEE2E2", "991B1B"),          # Red
         }
         fill_hex, font_hex = color_map.get(status.upper(), ("DCFCE7", "166534"))
         status_fill = PatternFill(start_color=fill_hex, end_color=fill_hex, fill_type="solid")
@@ -265,6 +266,69 @@ def update_excel_recruiter_status(
         logger.error(f"Failed to update Excel status: {e}")
 
     return updated
+
+def get_all_applied_contacts() -> List[Dict[str, str]]:
+    """Returns all application records with company, email, domain, and subject for robust reply matching."""
+    contacts: List[Dict[str, str]] = []
+
+    # Priority 1: Read from CSV tracker
+    if CSV_FILE.exists():
+        try:
+            with open(CSV_FILE, "r", encoding="utf-8-sig") as f:
+                reader = csv.DictReader(f)
+                for row in reader:
+                    comp = row.get("Company", "").strip()
+                    email_addr = row.get("Recipient Email", "").strip().lower()
+                    job = row.get("Job Title", "").strip()
+                    sub = row.get("Subject Line", "").strip()
+
+                    domain = ""
+                    if "@" in email_addr:
+                        domain = email_addr.split("@")[-1].strip().lower()
+                        if domain in ("gmail.com", "yahoo.com", "outlook.com", "hotmail.com"):
+                            domain = ""
+
+                    if comp or email_addr:
+                        contacts.append({
+                            "company": comp,
+                            "email": email_addr,
+                            "domain": domain,
+                            "job_title": job,
+                            "subject": sub
+                        })
+            if contacts:
+                return contacts
+        except Exception as e:
+            logger.warning(f"Error reading CSV contacts: {e}")
+
+    # Priority 2: Fallback to Excel
+    if EXCEL_FILE.exists():
+        try:
+            wb = openpyxl.load_workbook(EXCEL_FILE, data_only=True)
+            ws = wb.active
+            rows = list(ws.iter_rows(min_row=2, values_only=True))
+            for r in rows:
+                if r and len(r) > 4 and r[0]:
+                    comp = str(r[2] or "").strip()
+                    email_addr = str(r[4] or "").strip().lower()
+                    job = str(r[3] or "").strip()
+                    sub = str(r[8] or "").strip() if len(r) > 8 else ""
+                    domain = ""
+                    if "@" in email_addr:
+                        domain = email_addr.split("@")[-1].strip().lower()
+                        if domain in ("gmail.com", "yahoo.com", "outlook.com", "hotmail.com"):
+                            domain = ""
+                    contacts.append({
+                        "company": comp,
+                        "email": email_addr,
+                        "domain": domain,
+                        "job_title": job,
+                        "subject": sub
+                    })
+        except Exception as e:
+            logger.warning(f"Error reading Excel contacts: {e}")
+
+    return contacts
 
 def get_excel_stats() -> Dict[str, Any]:
     """Returns statistics from the Excel tracker."""

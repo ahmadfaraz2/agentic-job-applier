@@ -176,20 +176,23 @@ class JobApplicationView(discord.ui.View):
         job_title = self.parsed_data.get("job_title", "")
         subject_line = self.parsed_data.get("subject_line", "")
         pitch = self.parsed_data.get("tailored_pitch", "")
+        location = self.parsed_data.get("location", "")
 
         # Dispatch application email in background executor
         loop = asyncio.get_running_loop()
         result = await loop.run_in_executor(
             None,
-            send_cv_application_email,
-            to_email,
-            job_title,
-            company,
-            pitch,
-            self.raw_post,
-            "LinkedIn / Discord",
-            True,  # force=True because user explicitly clicked confirm
-            subject_line
+            lambda: send_cv_application_email(
+                to_email=to_email,
+                job_title=job_title,
+                company=company,
+                custom_paragraph=pitch,
+                job_description=self.raw_post,
+                source_platform="LinkedIn / Discord",
+                force=True,  # force=True because user explicitly clicked confirm
+                custom_subject=subject_line,
+                location=location
+            )
         )
 
         if "Success" in result:
@@ -229,7 +232,7 @@ class JobApplicationView(discord.ui.View):
                 await interaction.channel.send(
                     f"🚀 **Email Dispatched Successfully!**\n"
                     f"Cold outreach email for **{job_title}** has been sent to **{company}** (`{to_email}`) with `Ahmad_Faraz_CV.pdf` attached!\n"
-                    f"📁 Tracked in `data/applied_jobs_tracker.xlsx`."
+                    f"📁 Tracked in `data/applied_jobs_tracker.xlsx` (Confirmed in your Gmail Sent Mail & Inbox)."
                 )
             except Exception as e_send:
                 logger.error(f"Failed to post delivery confirmation to channel: {e_send}")

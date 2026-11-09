@@ -106,13 +106,13 @@ EXPANDED_CURATED_EMPLOYERS = [
     {
         "company": "Systems Limited",
         "title": "Trainee Software Engineer",
-        "email": "talent.acquisition@systemsltd.com",
+        "email": "careers@systemsltd.com",
         "location": "Lahore / Islamabad",
         "post": (
             "Systems Limited is expanding its engineering teams with Trainee Software Engineers.\n"
             "Looking for passionate fresh graduates in Computer Science or Software Engineering with strong programming skills, "
             "database knowledge, and an eagerness to excel in digital enterprise solutions.\n"
-            "To apply: Send your CV to talent.acquisition@systemsltd.com\n"
+            "To apply: Send your CV to careers@systemsltd.com\n"
             "Subject: Application for Trainee Software Engineer - Ahmad Faraz"
         )
     },

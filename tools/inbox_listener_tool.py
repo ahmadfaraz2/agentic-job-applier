@@ -16,7 +16,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional
 
 from config import Config
-from tools.excel_tracker_tool import update_excel_recruiter_status, get_excel_stats
+from tools.excel_tracker_tool import update_excel_recruiter_status, get_excel_stats, get_all_applied_contacts
 from tools.discord_alert_tool import notify_recruiter_reply
 
 logger = logging.getLogger(__name__)
@@ -81,7 +81,15 @@ def classify_recruiter_email(subject: str, body: str) -> str:
     """Classifies an incoming recruiter message into actionable categories."""
     combined = f"{subject} {body}".lower()
 
-    # Check for Interview Invite first (highest priority)
+    # Check for Bounce / NDR delivery failure first
+    BOUNCE_KEYWORDS = [
+        "undeliverable", "delivery status notification", "failure notice",
+        "returned mail", "wasn't found at", "couldn't be delivered", "mailbox unavailable"
+    ]
+    if any(k in combined for k in BOUNCE_KEYWORDS):
+        return "BOUNCED"
+
+    # Check for Interview Invite (highest priority)
     if any(k in combined for k in INTERVIEW_KEYWORDS) and not any(r in combined for r in REJECTION_KEYWORDS):
         return "INTERVIEW_INVITE"
 
@@ -113,11 +121,17 @@ def check_inbound_recruiter_replies(
         logger.warning("[Inbox Listener] Gmail credentials not configured.")
         return []
 
-    stats = get_excel_stats()
-    applied_companies = [c.lower() for c in stats.get("companies", [])]
-    if not applied_companies:
-        logger.info("[Inbox Listener] No applied companies found in Excel tracker.")
+    applied_contacts = get_all_applied_contacts()
+    if not applied_contacts:
+        logger.info("[Inbox Listener] No applied contacts found in Excel tracker.")
         return []
+
+    # Sort contacts by length of company name and job title descending to ensure specific matches precede generic ones
+    applied_contacts_sorted = sorted(
+        applied_contacts,
+        key=lambda c: len(c.get("job_title", "")) + len(c.get("company", "")),
+        reverse=True
+    )
 
     matched_replies: List[Dict[str, Any]] = []
 
@@ -152,25 +166,52 @@ def check_inbound_recruiter_replies(
                 sender_lower = sender.lower()
                 subject_lower = subject.lower()
 
-                # Check if sender matches any company we applied to
-                matched_company = None
-                for comp in applied_companies:
-                    clean_c = comp.replace(" ", "").replace("-", "").replace(".", "")
-                    if comp in sender_lower or clean_c in sender_lower or comp in subject_lower:
-                        matched_company = comp.title()
+                # Fetch body preview early to detect bounce recipient details or embedded email addresses
+                body = ""
+                try:
+                    res_b, b_data = mail.fetch(mid, "(BODY.PEEK[TEXT])")
+                    if res_b == "OK" and b_data and b_data[0]:
+                        raw_b = b_data[0][1]
+                        if isinstance(raw_b, bytes):
+                            body = raw_b.decode("utf-8", errors="replace")
+                except Exception:
+                    pass
+                body_lower = body.lower()
+
+                # Multi-Factor Match: Recipient Email, Domain, Company Name, and Subject line
+                matched_contact = None
+                for contact in applied_contacts_sorted:
+                    comp_clean = contact.get("company", "").strip().lower()
+                    email_clean = contact.get("email", "").strip().lower()
+                    domain_clean = contact.get("domain", "").strip().lower()
+                    job_clean = contact.get("job_title", "").strip().lower()
+
+                    # 1. Exact email match in sender or bounce body
+                    if email_clean and (email_clean in sender_lower or email_clean in body_lower):
+                        matched_contact = contact
                         break
 
-                if matched_company:
-                    # Fetch body only for matched recruiter email
-                    body = ""
-                    try:
-                        res_b, b_data = mail.fetch(mid, "(BODY.PEEK[TEXT])")
-                        if res_b == "OK" and b_data and b_data[0]:
-                            raw_b = b_data[0][1]
-                            if isinstance(raw_b, bytes):
-                                body = raw_b.decode("utf-8", errors="replace")
-                    except Exception:
-                        pass
+                    # 2. Company corporate domain match in sender or bounce body
+                    if domain_clean and (f"@{domain_clean}" in sender_lower or f"@{domain_clean}" in body_lower):
+                        matched_contact = contact
+                        break
+
+                    # 3. Company name match in sender, subject, or body
+                    if comp_clean and len(comp_clean) > 2:
+                        clean_c = comp_clean.replace(" ", "").replace("-", "").replace(".", "")
+                        if comp_clean in sender_lower or clean_c in sender_lower or comp_clean in subject_lower:
+                            matched_contact = contact
+                            break
+
+                    # 4. Subject line reply match (e.g., Re: Application for Trainee Software Engineer)
+                    if job_clean and len(job_clean) > 4:
+                        if job_clean in subject_lower and any(kw in subject_lower for kw in ("re:", "fwd:", "interview", "application", "undeliverable")):
+                            matched_contact = contact
+                            break
+
+                if matched_contact:
+                    matched_company = matched_contact.get("company", "Employer").title()
+                    target_email = matched_contact.get("email", "")
 
                     classification = classify_recruiter_email(subject, body)
                     clean_snippet = " ".join(body.split())[:200]
@@ -187,7 +228,7 @@ def check_inbound_recruiter_replies(
 
                     # Update Excel Tracker status
                     update_excel_recruiter_status(
-                        company_or_email=matched_company,
+                        company_or_email=target_email or matched_company,
                         status=classification,
                         reply_snippet=f"{subject} - {clean_snippet}"
                     )
@@ -201,6 +242,43 @@ def check_inbound_recruiter_replies(
                             subject=subject,
                             snippet=clean_snippet
                         )
+                else:
+                    # Ignore common transactional / marketing domains
+                    sender_domain = sender.split("@")[-1].lower() if "@" in sender else ""
+                    IGNORE_EXTERNAL_DOMAINS = {
+                        "google.com", "accounts.google.com", "gmail.com", "linkedin.com",
+                        "github.com", "discord.com", "microsoft.com", "apple.com", "youtube.com"
+                    }
+                    if any(ig in sender_domain for ig in IGNORE_EXTERNAL_DOMAINS):
+                        continue
+
+                    # Catch interview invites or assessments from external employers even if not previously in tracker
+                    classification = classify_recruiter_email(subject, body)
+                    if classification in ("INTERVIEW_INVITE", "ASSESSMENT"):
+                        inferred_comp = "External Employer"
+                        if "at " in subject.lower():
+                            inferred_comp = subject.lower().split("at ")[-1].strip().title()
+                        elif "@" in sender:
+                            inferred_comp = sender.split("@")[-1].split(".")[0].title()
+
+                        clean_snippet = " ".join(body.split())[:200]
+                        reply_data = {
+                            "company": inferred_comp,
+                            "sender": sender,
+                            "subject": subject,
+                            "date": date_str,
+                            "classification": classification,
+                            "snippet": clean_snippet
+                        }
+                        matched_replies.append(reply_data)
+                        if notify_discord:
+                            notify_recruiter_reply(
+                                company=inferred_comp,
+                                sender_email=sender,
+                                classification=classification,
+                                subject=subject,
+                                snippet=clean_snippet
+                            )
 
             except Exception as e:
                 logger.debug(f"Error parsing message ID {mid}: {e}")

@@ -14,7 +14,7 @@ import smtplib
 import threading
 import time
 from email.message import EmailMessage
-from email.utils import formataddr
+from email.utils import formataddr, make_msgid
 from pathlib import Path
 from typing import List, Optional
 
@@ -90,6 +90,44 @@ def get_standard_signature_html() -> str:
 
 STANDARD_SIGNATURE_HTML = get_standard_signature_html()
 
+def get_availability_and_relocation_text(location: str = "", job_text: str = "") -> str:
+    """Generates a high-conversion, friction-free availability and relocation statement.
+    Adapts dynamically to the job's target city (Lahore, Islamabad/Rawalpindi, Karachi, Remote).
+    Eliminates recruiter hesitation regarding relocation delays.
+    """
+    loc_combined = f"{location} {job_text}".lower()
+
+    if any(k in loc_combined for k in ("lahore", "lhr")):
+        return (
+            "I am actively available for on-site roles in Lahore and can relocate immediately without delay, "
+            "as well as remote opportunities. I've attached my CV for your review and would welcome the chance "
+            "to discuss how I can contribute to your engineering team."
+        )
+    elif any(k in loc_combined for k in ("islamabad", "rawalpindi", "isb", "rwp")):
+        return (
+            "I am actively available for on-site positions in Islamabad/Rawalpindi and can join immediately upon offer, "
+            "as well as remote opportunities. I've attached my CV for your review and would welcome the chance "
+            "to discuss how I can contribute to your engineering team."
+        )
+    elif any(k in loc_combined for k in ("karachi", "khi")):
+        return (
+            "I am actively available for roles in Karachi and can relocate immediately without delay, "
+            "as well as remote opportunities. I've attached my CV for your review and would welcome the chance "
+            "to discuss how I can contribute to your engineering team."
+        )
+    elif any(k in loc_combined for k in ("remote", "worldwide", "anywhere", "wfh")):
+        return (
+            "I have a dedicated, reliable remote development setup and am fully equipped for remote engineering collaboration. "
+            "I've attached my CV for your review and would be glad to discuss how I can contribute if my background is a match."
+        )
+    else:
+        # Default for Pakistan software houses
+        return (
+            "I am based in Pakistan, fully prepared to relocate immediately for on-site opportunities in Lahore or Islamabad, "
+            "and equally equipped for remote collaboration. I've attached my CV for your review and would welcome the opportunity "
+            "to discuss how I can contribute."
+        )
+
 def send_smtp_email(
     to_email: str,
     subject: str,
@@ -136,6 +174,10 @@ def send_smtp_email(
     sender_name = "Ahmad Faraz"
     msg["From"] = formataddr((sender_name, Config.SMTP_USER))
     msg["To"] = to_email
+    msg["Message-ID"] = make_msgid(domain="mail.gmail.com")
+
+    if getattr(Config, "BCC_SELF", True) and Config.SMTP_USER:
+        msg["Bcc"] = Config.SMTP_USER
 
     # Set pure plain text
     msg.set_content(body_text)
@@ -216,6 +258,7 @@ def send_cv_application_email(
     source_platform: str = "Web",
     force: bool = False,
     custom_subject: str = "",
+    location: str = "",
 ) -> str:
     """Sends a professional job application email with Ahmad Faraz's CV attached,
     matching his exact phrasing, greetings, background, and signature from previous sent emails.
@@ -230,6 +273,7 @@ def send_cv_application_email(
         source_platform: Where the job was found (e.g. 'LinkedIn', 'User Paste', 'Direct').
         force: If True, bypasses deduplication check.
         custom_subject: Optional recruiter-mandated subject line override.
+        location: Target job city or 'Remote' to craft high-conversion availability statement.
 
     Returns:
         Status string of the delivery.
@@ -265,11 +309,16 @@ def send_cv_application_email(
 
     custom_paragraph = strip_all_emojis(custom_paragraph).strip()
 
+    availability_paragraph = get_availability_and_relocation_text(
+        location=location,
+        job_text=f"{job_description} {location}"
+    )
+
     body_text = f"""Hello {company} team,
 
 {custom_paragraph}
 
-I'm based in Sargodha and open to discussing remote work or relocation if needed. I've attached my CV for your review and would be glad to talk about how I can contribute if my background is a match.
+{availability_paragraph}
 
 {STANDARD_SIGNATURE_TEXT}
 """
