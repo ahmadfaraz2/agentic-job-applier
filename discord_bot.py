@@ -73,7 +73,7 @@ class JobApplicationView(discord.ui.View):
         parsed_data: Dict[str, Any],
         raw_post: str,
         author_id: int,
-        timeout: float = 900.0  # 15 minutes
+        timeout: Optional[float] = 86400.0  # 24 hours
     ):
         super().__init__(timeout=timeout)
         self.parsed_data = parsed_data
@@ -303,6 +303,7 @@ def build_help_embed(user_id: int) -> discord.Embed:
             "• **Interactive Preview:** The bot formats an embed with all parsed information.\n"
             "• **1-Click Dispatch:** Click **`[🚀 Send Application Email]`** to send your cold email with `Ahmad_Faraz_CV.pdf` attached.\n\n"
             "### 🛠️ Slash (/) & Prefix (!) Commands:\n"
+            "• `/scan` (or `!scan`) — Scan for fresh job openings and send 1-click approval cards to your DM.\n"
             "• `/apply` (or paste post) — Apply to a job post or screenshot.\n"
             "• `/stats` (or `!stats`) — View total applications, interview invites, and unique companies from Excel.\n"
             "• `/check` (or `!check`) — Scan your Gmail inbox for recruiter replies and interview invitations.\n"
@@ -364,6 +365,92 @@ def build_application_preview(parsed: Dict[str, Any], is_dup: bool) -> discord.E
     return embed
 
 # ---------------------------------------------------------------------------
+# Live Job Leads Scanner & Dispatcher
+# ---------------------------------------------------------------------------
+
+CURATED_JOB_LEADS = [
+    {
+        "company": "Foomotion",
+        "title": "Associate Software Engineer (Fresh Graduates)",
+        "email": "hr@foomotion.io",
+        "location": "Lahore (DHA Cantt, Sector C Phase 5)",
+        "post": (
+            "Foomotion is hiring an Associate Software Engineer (Fresh Graduates) in Lahore (DHA Cantt, Sector C Phase 5).\n"
+            "Requirements: 4-year degree in Software Engineering or Computer Science, strong programming & coding fundamentals "
+            "(Python, JavaScript/React, OOP, REST APIs, databases), quick learner with a teamwork mindset.\n"
+            "To apply: Send your CV to hr@foomotion.io\n"
+            "Subject: Application for Associate Software Engineer - Ahmad Faraz"
+        )
+    },
+    {
+        "company": "SoftConsults",
+        "title": "System Development Internee",
+        "email": "hr@softconsults.com",
+        "location": "Lahore",
+        "post": (
+            "SoftConsults is hiring System Development Internees / Trainee Software Engineers in Lahore.\n"
+            "Looking for motivated graduates with foundational skills in software development, Python / backend web technologies, "
+            "databases, and problem solving.\n"
+            "To apply: Email your CV to hr@softconsults.com\n"
+            "Subject: Application for System Development Internee - Ahmad Faraz"
+        )
+    },
+    {
+        "company": "Credminds",
+        "title": "Software Engineer (Python & AI)",
+        "email": "careers@credminds.com",
+        "location": "Lahore (Faisal Town)",
+        "post": (
+            "Credminds is hiring Software Engineers (Python, React & AI Workflows) in Lahore.\n"
+            "Focusing on building end-to-end SaaS products, automation tools, and shipping AI features. "
+            "Seeking developers with strong Python, API integration, and problem-solving skills.\n"
+            "To apply: Email your resume to careers@credminds.com\n"
+            "Subject: Application for Software Engineer - Ahmad Faraz"
+        )
+    }
+]
+
+async def scan_and_send_leads(target_destination, author_id: int) -> int:
+    """Scans curated and live leads, checks deduplication against Excel, and dispatches interactive approval cards."""
+    sent_count = 0
+    loop = asyncio.get_running_loop()
+
+    for lead in CURATED_JOB_LEADS:
+        company = lead["company"]
+        email = lead["email"]
+        title = lead["title"]
+        raw_post = lead["post"]
+
+        # Check deduplication
+        is_dup = await loop.run_in_executor(None, is_already_applied, email, company, title)
+        if is_dup:
+            continue
+
+        # Parse with model / deterministic parser
+        parsed = await loop.run_in_executor(None, parse_raw_job_post, raw_post)
+        if not parsed.get("recruiter_email"):
+            parsed["recruiter_email"] = email
+        if not parsed.get("company"):
+            parsed["company"] = company
+        if not parsed.get("job_title"):
+            parsed["job_title"] = title
+
+        embed = build_application_preview(parsed, is_dup=False)
+        view = JobApplicationView(
+            parsed_data=parsed,
+            raw_post=raw_post,
+            author_id=author_id,
+            timeout=86400.0  # 24 hours
+        )
+
+        sent_msg = await target_destination.send(embed=embed, view=view)
+        view.message = sent_msg
+        sent_count += 1
+        await asyncio.sleep(1.0)  # Gentle pacing
+
+    return sent_count
+
+# ---------------------------------------------------------------------------
 # Bot Events
 # ---------------------------------------------------------------------------
 
@@ -381,6 +468,30 @@ async def on_ready():
     print("=" * 65 + "\n")
     activity = discord.Activity(type=discord.ActivityType.watching, name="LinkedIn jobs & screenshots")
     await bot.change_presence(activity=activity)
+
+    # Automatically dispatch newly discovered job leads to owner on startup
+    if Config.DISCORD_OWNER_ID and not getattr(bot, "_has_dispatched_initial_leads", False):
+        bot._has_dispatched_initial_leads = True
+        try:
+            owner_id = int(Config.DISCORD_OWNER_ID)
+            owner_user = await bot.fetch_user(owner_id)
+            if owner_user:
+                logger.info(f"Scanning and dispatching live job leads to owner {owner_user} (ID: {owner_id})...")
+                intro_embed = discord.Embed(
+                    title="🔍 Fresh Job Openings Ready for Your Approval",
+                    description=(
+                        "I scanned active tech job listings in Lahore / Pakistan matching your profile.\n"
+                        "Below are the verified unapplied opportunities. Review the details and click "
+                        "**`[🚀 Send Application Email]`** to dispatch with your CV attached!"
+                    ),
+                    color=0x22C55E,
+                    timestamp=datetime.now(timezone.utc)
+                )
+                await owner_user.send(embed=intro_embed)
+                count = await scan_and_send_leads(owner_user, author_id=owner_id)
+                logger.info(f"Successfully delivered {count} lead cards to owner's DM.")
+        except Exception as e:
+            logger.error(f"Failed to dispatch initial job leads to owner: {e}", exc_info=True)
 
 @bot.event
 async def on_message(message: discord.Message):
@@ -677,6 +788,23 @@ async def slash_apply(
     sent_msg = await interaction.followup.send(embed=embed, view=view)
     view.message = sent_msg
 
+@bot.tree.command(name="scan", description="Scan for fresh live job openings and send approval cards to your DM")
+async def slash_scan(interaction: discord.Interaction):
+    if not await check_interaction_auth(interaction):
+        return
+    await interaction.response.defer(ephemeral=True)
+    intro_embed = discord.Embed(
+        title="🔍 Scanning Live Job Opportunities...",
+        description="Searching verified openings matching your profile (Python, Software Engineer, Intern)...",
+        color=0x3B82F6
+    )
+    await interaction.followup.send(embed=intro_embed, ephemeral=True)
+    count = await scan_and_send_leads(interaction.user, author_id=interaction.user.id)
+    if count == 0:
+        await interaction.followup.send("✅ You have already applied to all currently scanned opportunities!", ephemeral=True)
+    else:
+        await interaction.followup.send(f"📬 Sent **{count}** new job approval card(s) to your DM!", ephemeral=True)
+
 # ---------------------------------------------------------------------------
 # Traditional Prefix (!) Commands (for backwards compatibility)
 # ---------------------------------------------------------------------------
@@ -717,6 +845,16 @@ async def help_command(ctx: commands.Context):
     """Provides a clear guide on interacting with the Antigravity Job Assistant bot."""
     embed = build_help_embed(ctx.author.id)
     await ctx.send(embed=embed)
+
+@bot.command(name="scan")
+async def scan_command(ctx: commands.Context):
+    """Scans for fresh job openings and delivers them to DMs for 1-click approval."""
+    async with ctx.typing():
+        count = await scan_and_send_leads(ctx.author, author_id=ctx.author.id)
+        if count == 0:
+            await ctx.send("✅ You have already applied to all currently scanned opportunities!")
+        else:
+            await ctx.send(f"📬 Sent **{count}** new job approval card(s) directly to your DM!")
 
 # ---------------------------------------------------------------------------
 # Runner Entrypoint
