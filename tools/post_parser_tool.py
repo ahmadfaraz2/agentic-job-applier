@@ -433,7 +433,7 @@ Respond with ONLY a pure JSON object in this exact schema (no markdown fences, n
     ]
 
     try:
-        proc = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8", timeout=25)
+        proc = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8", timeout=6)
         if proc.returncode != 0:
             logger.warning(f"Antigravity CLI returned code {proc.returncode}: {proc.stderr}")
             return None

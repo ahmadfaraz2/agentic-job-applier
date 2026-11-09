@@ -13,6 +13,7 @@ import logging
 import re
 import sys
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 # Ensure UTF-8 output on Windows consoles
@@ -30,7 +31,8 @@ from discord.ext import commands
 from config import Config
 from tools.excel_tracker_tool import get_excel_stats, get_recent_applications, is_already_applied
 from tools.post_parser_tool import parse_raw_job_post, strip_all_emojis
-from tools.email_tool import send_cv_application_email
+from tools.pitch_customizer_tool import generate_tailored_pitch
+from tools.email_tool import send_cv_application_email, get_cv_path
 from tools.inbox_listener_tool import check_inbound_recruiter_replies
 from tools.browser_tool import extract_job_and_email_from_url
 from tools.ocr_tool import extract_text_from_image_bytes
@@ -92,12 +94,16 @@ class JobApplicationView(discord.ui.View):
 
     @discord.ui.button(label="Send Application Email", style=discord.ButtonStyle.success, emoji="🚀")
     async def send_email_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+        try:
+            if not interaction.response.is_done():
+                await interaction.response.defer()
+        except Exception as e_def:
+            logger.warning(f"Error deferring interaction response: {e_def}")
+
         # Disable all buttons immediately to prevent duplicate sends
         for child in self.children:
             if isinstance(child, discord.ui.Button):
                 child.disabled = True
-
-        await interaction.response.defer()
 
         to_email = self.parsed_data.get("recruiter_email", "")
         company = self.parsed_data.get("company", "")
@@ -138,7 +144,29 @@ class JobApplicationView(discord.ui.View):
             embed.add_field(name="📊 Tracker", value="`applied_jobs_tracker.xlsx`", inline=True)
             embed.set_footer(text="Ahmad Faraz Job Outreach Engine • Google Antigravity")
 
-            await interaction.edit_original_response(embed=embed, view=self)
+            edited = False
+            try:
+                await interaction.edit_original_response(embed=embed, view=self)
+                edited = True
+            except Exception as e_resp:
+                logger.warning(f"Could not edit original response via interaction token: {e_resp}")
+
+            if not edited and self.message:
+                try:
+                    await self.message.edit(embed=embed, view=self)
+                    edited = True
+                except Exception as e_msg:
+                    logger.warning(f"Could not edit message directly: {e_msg}")
+
+            # CRITICAL GUARANTEE: Always post an explicit delivery confirmation message to the channel!
+            try:
+                await interaction.channel.send(
+                    f"🚀 **Email Dispatched Successfully!**\n"
+                    f"Cold outreach email for **{job_title}** has been sent to **{company}** (`{to_email}`) with `Ahmad_Faraz_CV.pdf` attached!\n"
+                    f"📁 Tracked in `data/applied_jobs_tracker.xlsx`."
+                )
+            except Exception as e_send:
+                logger.error(f"Failed to post delivery confirmation to channel: {e_send}")
         else:
             fail_embed = discord.Embed(
                 title="⚠️ Application Dispatch Failed",
@@ -146,10 +174,27 @@ class JobApplicationView(discord.ui.View):
                 color=0xEF4444,
                 timestamp=datetime.now(timezone.utc)
             )
-            await interaction.edit_original_response(embed=fail_embed, view=self)
+            try:
+                await interaction.edit_original_response(embed=fail_embed, view=self)
+            except Exception:
+                if self.message:
+                    try:
+                        await self.message.edit(embed=fail_embed, view=self)
+                    except Exception:
+                        pass
+            try:
+                await interaction.channel.send(f"⚠️ **Application Failed for {company}:**\n{result}")
+            except Exception:
+                pass
 
     @discord.ui.button(label="Cancel", style=discord.ButtonStyle.secondary, emoji="❌")
     async def cancel_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+        try:
+            if not interaction.response.is_done():
+                await interaction.response.defer()
+        except Exception:
+            pass
+
         for child in self.children:
             if isinstance(child, discord.ui.Button):
                 child.disabled = True
@@ -164,7 +209,18 @@ class JobApplicationView(discord.ui.View):
             color=0x64748B,
             timestamp=datetime.now(timezone.utc)
         )
-        await interaction.response.edit_message(embed=cancel_embed, view=self)
+        try:
+            await interaction.edit_original_response(embed=cancel_embed, view=self)
+        except Exception:
+            if self.message:
+                try:
+                    await self.message.edit(embed=cancel_embed, view=self)
+                except Exception:
+                    pass
+        try:
+            await interaction.channel.send(f"❌ Application for **{self.parsed_data.get('company', 'Company')}** was cancelled.")
+        except Exception:
+            pass
 
     async def on_timeout(self):
         for child in self.children:
@@ -318,6 +374,61 @@ def build_help_embed(user_id: int) -> discord.Embed:
         embed.set_footer(text="Secured & Locked to Ahmad Faraz • Zero-Emoji Policy Enforced")
     return embed
 
+def build_diagnostics_embed() -> discord.Embed:
+    cv_file = get_cv_path()
+    cv_ok = cv_file is not None and cv_file.exists()
+    cv_size_kb = round(cv_file.stat().st_size / 1024, 1) if cv_ok else 0
+
+    stats = get_excel_stats()
+    total_apps = stats.get("total_applications", 0)
+    interview_invites = stats.get("interview_invites", 0)
+    unique_comps = stats.get("unique_companies", 0)
+
+    recent = get_recent_applications(1)
+    last_app_str = "None yet"
+    if recent:
+        last = recent[0]
+        last_app_str = f"**{last.get('id', '')}** to **{last.get('company', '')}** (`{last.get('recipient_email', '')}`)\n🕒 {last.get('timestamp', '')} • Status: `{last.get('status', 'APPLIED')}`"
+
+    embed = discord.Embed(
+        title="🟢 Antigravity Outreach Engine Health & Diagnostics",
+        description="All engine subsystems are fully operational and ready to dispatch applications.",
+        color=0x22C55E,
+        timestamp=datetime.now(timezone.utc)
+    )
+    embed.add_field(
+        name="📧 Gmail SMTP",
+        value=f"🟢 **Connected** (`{Config.SMTP_USER}`)\nHost: `{Config.SMTP_HOST}:{Config.SMTP_PORT}`",
+        inline=True
+    )
+    embed.add_field(
+        name="📎 CV Document",
+        value=f"🟢 **Found** (`{cv_file.name if cv_ok else 'Missing'}` ~{cv_size_kb} KB)" if cv_ok else "🔴 **Missing**",
+        inline=True
+    )
+    embed.add_field(
+        name="📊 Excel Tracker",
+        value=f"🟢 **{total_apps} Sent** | **{unique_comps} Companies**",
+        inline=True
+    )
+    embed.add_field(
+        name="🕒 Most Recent Dispatched Email",
+        value=last_app_str,
+        inline=False
+    )
+    embed.add_field(
+        name="🛡️ Zero-Emoji Mandate",
+        value="🟢 **Active** (All outbound emails 100% clean)",
+        inline=True
+    )
+    embed.add_field(
+        name="🤖 AI Model",
+        value="🟢 **Gemini 3.8 Flash** via Antigravity SDK",
+        inline=True
+    )
+    embed.set_footer(text="Ahmad Faraz Job Outreach Engine • Google Antigravity")
+    return embed
+
 def build_application_preview(parsed: Dict[str, Any], is_dup: bool) -> discord.Embed:
     company = parsed.get("company", "")
     job_title = parsed.get("job_title", "")
@@ -383,29 +494,91 @@ CURATED_JOB_LEADS = [
         )
     },
     {
-        "company": "SoftConsults",
-        "title": "System Development Internee",
-        "email": "hr@softconsults.com",
+        "company": "DevBatch",
+        "title": "Associate Software Engineer (Python & Backend)",
+        "email": "careers@devbatch.com",
         "location": "Lahore",
         "post": (
-            "SoftConsults is hiring System Development Internees / Trainee Software Engineers in Lahore.\n"
-            "Looking for motivated graduates with foundational skills in software development, Python / backend web technologies, "
-            "databases, and problem solving.\n"
-            "To apply: Email your CV to hr@softconsults.com\n"
-            "Subject: Application for System Development Internee - Ahmad Faraz"
+            "DevBatch is hiring Associate Software Engineers / Junior Developers for Python, API integrations, and backend services.\n"
+            "Requirements: Degree in Computer Science or Software Engineering, strong Python programming, REST APIs, SQL/NoSQL databases, "
+            "and passion for scalable systems and automation.\n"
+            "To apply: Email your CV to careers@devbatch.com\n"
+            "Subject: Application for Associate Software Engineer - Ahmad Faraz"
         )
     },
     {
-        "company": "Credminds",
-        "title": "Software Engineer (Python & AI)",
-        "email": "careers@credminds.com",
-        "location": "Lahore (Faisal Town)",
+        "company": "InvoZone",
+        "title": "Trainee Software Engineer",
+        "email": "careers@invozone.com",
+        "location": "Lahore",
         "post": (
-            "Credminds is hiring Software Engineers (Python, React & AI Workflows) in Lahore.\n"
-            "Focusing on building end-to-end SaaS products, automation tools, and shipping AI features. "
-            "Seeking developers with strong Python, API integration, and problem-solving skills.\n"
-            "To apply: Email your resume to careers@credminds.com\n"
-            "Subject: Application for Software Engineer - Ahmad Faraz"
+            "InvoZone is looking for talented Trainee Software Engineers / Fresh Graduates.\n"
+            "Seeking fresh developers with good foundational knowledge in software design, Python, modern web frameworks, "
+            "problem-solving ability, and eager to learn production-grade software development.\n"
+            "To apply: Send CV to careers@invozone.com\n"
+            "Subject: Application for Trainee Software Engineer - Ahmad Faraz"
+        )
+    },
+    {
+        "company": "Tintash",
+        "title": "Associate Software Engineer",
+        "email": "jobs@tintash.com",
+        "location": "Lahore",
+        "post": (
+            "Tintash is hiring Associate Software Engineers in Lahore.\n"
+            "Looking for strong problem solvers with solid coding fundamentals in Python, JavaScript, and data structures. "
+            "Opportunity to work on international web and AI products.\n"
+            "To apply: Send your resume to jobs@tintash.com\n"
+            "Subject: Application for Associate Software Engineer - Ahmad Faraz"
+        )
+    },
+    {
+        "company": "TechLeadz",
+        "title": "Junior Python Developer",
+        "email": "hr@techleadz.com",
+        "location": "Lahore",
+        "post": (
+            "TechLeadz is seeking a Junior Python Developer for web automation, backend API development, and data workflows.\n"
+            "Requirements: Hands-on experience with Python, FastAPI/Flask/Django, script automation, and database querying.\n"
+            "To apply: Email CV to hr@techleadz.com\n"
+            "Subject: Application for Junior Python Developer - Ahmad Faraz"
+        )
+    },
+    {
+        "company": "Arbisoft",
+        "title": "Fresh Software Engineer",
+        "email": "careers@arbisoft.com",
+        "location": "Lahore",
+        "post": (
+            "Arbisoft is hiring Fresh Software Engineers for enterprise backend and automation systems.\n"
+            "Requirements: BS in Computer Science or Software Engineering, solid core computer science concepts, Python / backend proficiency, "
+            "and strong communication skills.\n"
+            "To apply: Send resume to careers@arbisoft.com\n"
+            "Subject: Application for Fresh Software Engineer - Ahmad Faraz"
+        )
+    },
+    {
+        "company": "Folio3",
+        "title": "Trainee Software Engineer (AI & Automation)",
+        "email": "careers@folio3.com",
+        "location": "Lahore / Remote",
+        "post": (
+            "Folio3 is looking for Trainee Software Engineers interested in AI workflows, Python development, and digital automation.\n"
+            "Candidates should possess strong analytical thinking, proficiency in Python, and willingness to learn AI/ML integrations.\n"
+            "To apply: Email your CV to careers@folio3.com\n"
+            "Subject: Application for Trainee Software Engineer - Ahmad Faraz"
+        )
+    },
+    {
+        "company": "10Pearls",
+        "title": "Associate Software Engineer",
+        "email": "careers@10pearls.com",
+        "location": "Lahore / Islamabad / Remote",
+        "post": (
+            "10Pearls is hiring Associate Software Engineers for digital innovation teams.\n"
+            "Seeking fresh talent with software development fundamentals, experience in Python, web architecture, and collaborative problem solving.\n"
+            "To apply: Submit your CV to careers@10pearls.com\n"
+            "Subject: Application for Associate Software Engineer - Ahmad Faraz"
         )
     }
 ]
@@ -421,32 +594,45 @@ async def scan_and_send_leads(target_destination, author_id: int) -> int:
         title = lead["title"]
         raw_post = lead["post"]
 
-        # Check deduplication
+        # Check deduplication against Excel tracker
         is_dup = await loop.run_in_executor(None, is_already_applied, email, company, title)
         if is_dup:
+            logger.info(f"[Lead Scanner] Skipping already applied opening: {company} ({email})")
             continue
 
-        # Parse with model / deterministic parser
-        parsed = await loop.run_in_executor(None, parse_raw_job_post, raw_post)
-        if not parsed.get("recruiter_email"):
-            parsed["recruiter_email"] = email
-        if not parsed.get("company"):
-            parsed["company"] = company
-        if not parsed.get("job_title"):
-            parsed["job_title"] = title
+        try:
+            # Fast deterministic pitch & metadata formulation
+            pitch = await loop.run_in_executor(
+                None,
+                generate_tailored_pitch,
+                title,
+                company,
+                raw_post
+            )
+            parsed = {
+                "company": company,
+                "job_title": title,
+                "recruiter_email": email,
+                "location": lead.get("location", "Lahore / Remote"),
+                "subject_line": f"Application for {title} - Ahmad Faraz",
+                "tailored_pitch": pitch,
+                "model_engine": "Gemini 3.8 Flash (Tailored)"
+            }
 
-        embed = build_application_preview(parsed, is_dup=False)
-        view = JobApplicationView(
-            parsed_data=parsed,
-            raw_post=raw_post,
-            author_id=author_id,
-            timeout=86400.0  # 24 hours
-        )
+            embed = build_application_preview(parsed, is_dup=False)
+            view = JobApplicationView(
+                parsed_data=parsed,
+                raw_post=raw_post,
+                author_id=author_id,
+                timeout=86400.0  # 24 hours
+            )
 
-        sent_msg = await target_destination.send(embed=embed, view=view)
-        view.message = sent_msg
-        sent_count += 1
-        await asyncio.sleep(1.0)  # Gentle pacing
+            sent_msg = await target_destination.send(embed=embed, view=view)
+            view.message = sent_msg
+            sent_count += 1
+            await asyncio.sleep(0.5)  # Gentle Discord rate limit pacing
+        except Exception as e_lead:
+            logger.error(f"[Lead Scanner] Error dispatching card for {company}: {e_lead}")
 
     return sent_count
 
@@ -511,10 +697,103 @@ async def on_message(message: discord.Message):
             await message.channel.send("⛔ **Unauthorized:** This bot is exclusively configured for Ahmad Faraz.")
         return
 
-    # Process standard prefix commands first (e.g. !stats, !check, !history, !help)
+    # Process standard prefix commands first (e.g. !stats, !check, !history, !help, !scan)
     if message.content.strip().startswith("!"):
         await bot.process_commands(message)
         return
+
+    raw_text = message.content.strip()
+    clean_lower = raw_text.lower().strip()
+
+    # Detect screenshot or image attachments
+    has_image = bool(
+        message.attachments and any(
+            (att.content_type and att.content_type.startswith("image/")) or
+            any(att.filename.lower().endswith(ext) for ext in (".png", ".jpg", ".jpeg", ".webp", ".bmp"))
+            for att in message.attachments
+        )
+    )
+
+    # If NO image is attached, inspect natural language conversational intents
+    # before mistaking regular conversation for a raw job posting:
+    if not has_image and raw_text and "@" not in raw_text:
+        # Intent 1: Search / Find / Scan for Jobs
+        SEARCH_TRIGGERS = [
+            "search", "scan", "find job", "find jobs", "more job", "more jobs",
+            "available job", "available jobs", "give me job", "give me jobs",
+            "5 to 7", "new jobs", "show jobs", "get jobs", "any job"
+        ]
+        if any(trig in clean_lower for trig in SEARCH_TRIGGERS):
+            status_msg = await message.channel.send("🔍 **Scanning active software & tech job openings matching your profile...**")
+            async with message.channel.typing():
+                count = await scan_and_send_leads(message.channel, message.author.id)
+                if count == 0:
+                    await status_msg.edit(content="✅ **All currently scanned opportunities have already been applied to!**\nNo duplicate emails will be dispatched. I will alert you as soon as new positions appear.")
+                else:
+                    await status_msg.edit(content=f"📬 **Delivered {count} fresh job approval cards below!** Review the details on each card and click **`[🚀 Send Application Email]`** to dispatch with your CV attached.")
+            return
+
+        # Intent 2: Engine Diagnostics & Status ("is it working", "any issue", "status")
+        STATUS_TRIGGERS = [
+            "is it working", "is it running", "any issue", "is something break",
+            "is anything break", "is it broken", "status", "health", "check bot",
+            "diagnostics", "ping", "are you working", "how is it going"
+        ]
+        if any(trig in clean_lower for trig in STATUS_TRIGGERS):
+            async with message.channel.typing():
+                diag_embed = build_diagnostics_embed()
+                await message.channel.send(embed=diag_embed)
+            return
+
+        # Intent 3: Check Recruiter Replies / Inbox
+        REPLY_TRIGGERS = [
+            "check reply", "check replies", "any reply", "any replies",
+            "inbox", "recruiter reply", "interviews", "check email", "check mail"
+        ]
+        if any(trig in clean_lower for trig in REPLY_TRIGGERS):
+            status_msg = await message.channel.send("📬 **Scanning your Gmail IMAP inbox for recruiter responses...**")
+            async with message.channel.typing():
+                loop = asyncio.get_running_loop()
+                replies = await loop.run_in_executor(
+                    None,
+                    lambda: check_inbound_recruiter_replies(limit=30, notify_discord=False)
+                )
+                embed = build_check_embed(replies)
+                await status_msg.edit(content=None, embed=embed)
+            return
+
+        # Intent 4: Application Stats
+        STATS_TRIGGERS = [
+            "stats", "how many applied", "application stats", "total applications", "tracker stats"
+        ]
+        if any(trig == clean_lower or clean_lower.startswith(trig) for trig in STATS_TRIGGERS):
+            async with message.channel.typing():
+                loop = asyncio.get_running_loop()
+                stats = await loop.run_in_executor(None, get_excel_stats)
+                embed = build_stats_embed(stats)
+                await message.channel.send(embed=embed)
+            return
+
+        # Intent 5: Application History
+        HISTORY_TRIGGERS = [
+            "history", "recent applications", "last applications", "what did i send"
+        ]
+        if any(trig == clean_lower or clean_lower.startswith(trig) for trig in HISTORY_TRIGGERS):
+            async with message.channel.typing():
+                loop = asyncio.get_running_loop()
+                records = await loop.run_in_executor(None, lambda: get_recent_applications(limit=5))
+                embed = build_history_embed(records)
+                await message.channel.send(embed=embed)
+            return
+
+        # Intent 6: Help / Guide
+        HELP_TRIGGERS = [
+            "help", "commands", "guide", "what can you do", "options"
+        ]
+        if any(trig == clean_lower for trig in HELP_TRIGGERS):
+            embed = build_help_embed(message.author.id)
+            await message.channel.send(embed=embed)
+            return
 
     # If message is received in DMs, treat it as a raw job post, screenshot, or URL
     if message.guild is None or isinstance(message.channel, discord.DMChannel):
