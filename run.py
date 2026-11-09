@@ -25,7 +25,6 @@ if sys.platform == "win32":
 
 from config import Config
 from test_smtp import run_smtp_test
-from tools.tracker_tool import record_job_decision, get_application_history
 from tools.browser_tool import browse_job_page, check_cdp_available, extract_job_and_email_from_url
 from tools.email_tool import send_cv_application_email, get_cv_path, STANDARD_SIGNATURE_TEXT
 from tools.job_scanner_tool import (
@@ -35,11 +34,18 @@ from tools.job_scanner_tool import (
     update_pasted_job_status
 )
 from tools.web_search_tool import execute_prompt_search, search_web_jobs
-from tools.excel_tracker_tool import get_excel_stats, is_already_applied, EXCEL_FILE
+from tools.excel_tracker_tool import (
+    get_excel_stats,
+    get_recent_applications,
+    record_excel_application,
+    is_already_applied,
+    EXCEL_FILE
+)
 from tools.post_parser_tool import parse_raw_job_post
 from tools.inbox_listener_tool import check_inbound_recruiter_replies
 from tools.discord_alert_tool import send_discord_notification
-from workflow import run_unified_workflow, start_periodic_daemon
+from tools.live_job_crawler import fetch_live_job_leads
+from tools.followup_tool import get_pending_followups
 
 def print_banner():
     banner = f"""
@@ -317,14 +323,6 @@ def handle_paste_smart(to_email_arg: str = "", raw_post_text: str = ""):
             force=already_applied
         )
         print(f"Result: {result}")
-        record_job_decision(
-            job_id=f"paste_{abs(hash(to_email + job_title))}",
-            job_title=job_title,
-            company=company,
-            action="APPLIED",
-            match_score=95,
-            notes=f"Applied via smart raw post paste to {to_email}"
-        )
     elif action == "q":
         status_msg = add_pasted_job(
             to_email=to_email,
@@ -392,14 +390,6 @@ def handle_apply_queue():
         print(f"Result: {res}")
         if "Success" in res:
             update_pasted_job_status(jid, status="APPLIED")
-            record_job_decision(
-                job_id=jid,
-                job_title=job_title,
-                company=company,
-                action="APPLIED",
-                match_score=95,
-                notes=f"Applied via queue to {to_email}"
-            )
     print("\n[✓] Completed queue processing.")
 
 async def handle_apply_url(url: str, override_email: str = ""):
@@ -458,14 +448,6 @@ I'm based in Sargodha and open to discussing remote work or relocation if needed
             source_platform="URL Direct"
         )
         print(f"\nResult: {res}")
-        record_job_decision(
-            job_id=f"url_{abs(hash(url))}",
-            job_title=title,
-            company=company,
-            action="APPLIED",
-            match_score=95,
-            notes=f"Applied via direct URL: {url}"
-        )
     else:
         print("Application aborted.")
 
@@ -503,6 +485,71 @@ def handle_prompt_search(prompt_text: str = "", override_email: str = ""):
     if choice.isdigit() and 1 <= int(choice) <= len(results):
         selected = results[int(choice) - 1]
         asyncio.run(handle_apply_url(selected["url"], override_email=override_email))
+
+async def run_lightweight_sweep(notify_discord: bool = True) -> int:
+    """
+    Lightweight, fast autonomous outreach cycle:
+    1. Check inbound recruiter replies & delivery status
+    2. Check pending follow-ups (>= 4 days)
+    3. Crawl live job leads across LinkedIn Pakistan, Remotive, and curated tech employers
+    4. Report discovered opportunities and statistics
+    """
+    print("\n" + "=" * 65)
+    print("  🚀 Fast Autonomous Job & Outreach Cycle")
+    print("=" * 65)
+
+    # 1. Check inbox for recruiter replies
+    print("\n[1/3] Checking inbound recruiter replies via IMAP...")
+    replies = check_inbound_recruiter_replies(limit=25, notify_discord=notify_discord)
+    if replies:
+        print(f"  [✓] Detected {len(replies)} recruiter response(s)!")
+    else:
+        print("  [i] No new recruiter replies detected.")
+
+    # 2. Check pending follow-ups
+    print("\n[2/3] Checking applications pending follow-up (>= 4 days)...")
+    pending = get_pending_followups(min_days=4, max_days=14)
+    if pending:
+        print(f"  [!] {len(pending)} application(s) awaiting follow-up bump:")
+        for p in pending[:3]:
+            print(f"      • {p['company']} ({p['job_title']}) - Applied {p['days_ago']} days ago")
+    else:
+        print("  [✓] All applications up to date.")
+
+    # 3. Discover live jobs
+    print("\n[3/3] Crawling live job leads (LinkedIn Pakistan, Remotive, Curated)...")
+    leads = fetch_live_job_leads(limit=5)
+    unapplied = [l for l in leads if not is_already_applied(l.get("email", ""), l.get("company", ""), l.get("title", ""))]
+    print(f"  [✓] Discovered {len(unapplied)} fresh unapplied opportunity(ies):")
+    for idx, l in enumerate(unapplied, 1):
+        print(f"      {idx}. {l['title']} at {l['company']} (Recruiter: {l.get('email') or 'Portal Link'})")
+
+    stats = get_excel_stats()
+    print("\n" + "-" * 65)
+    print(f"  📊 Tracker Summary: {stats.get('total_applications', 0)} Applied | "
+          f"{stats.get('interview_invites', 0)} Interviews | "
+          f"{stats.get('unique_companies', 0)} Unique Companies")
+    print("-" * 65 + "\n")
+    return len(unapplied)
+
+async def start_periodic_daemon(interval_seconds: Optional[int] = None):
+    """Continuous lightweight background daemon."""
+    interval = interval_seconds or Config.SCAN_INTERVAL_SECONDS
+    print("\n" + "=" * 65)
+    print(f"  ⏰ Starting Lightweight Background Job Daemon (Interval: {interval}s)")
+    print("  Press Ctrl+C to stop.")
+    print("=" * 65 + "\n")
+    while True:
+        try:
+            await run_lightweight_sweep(notify_discord=True)
+            print(f"Sleeping for {interval}s until next check...")
+            await asyncio.sleep(interval)
+        except (KeyboardInterrupt, asyncio.CancelledError):
+            print("\nDaemon gracefully stopped.")
+            break
+        except Exception as e:
+            print(f"[!] Error during daemon cycle: {e}")
+            await asyncio.sleep(60)
 
 def main():
     print_banner()
@@ -756,15 +803,17 @@ def main():
         return
 
     if args.history:
-        history_json = get_application_history(limit=20)
-        data = json.loads(history_json)
-        stats = data.get("stats", {})
-        print(f"Total Evaluated: {stats.get('total_evaluated', 0)}")
-        print(f"Qualified:       {stats.get('qualified', 0)}")
-        print(f"Rejected:        {stats.get('rejected', 0)}")
-        print("-" * 60)
-        for job in data.get("recent_jobs", []):
-            print(f"[{job.get('status')}] {job.get('title')} ({job.get('company')}) - Score: {job.get('match_score')}")
+        stats = get_excel_stats()
+        recent = get_recent_applications(limit=20)
+        print("\n" + "=" * 65)
+        print("  📜 Recent Application History (Excel Tracker)")
+        print("=" * 65)
+        print(f"Total Applications: {stats.get('total_applications', 0)}")
+        print(f"Follow-ups Pending: {stats.get('followup_pending', 0)}")
+        print("-" * 65)
+        for app in recent:
+            print(f"[{app.get('status', 'APPLIED')}] {app.get('job_title')} at {app.get('company')} ({app.get('recipient_email')}) - {app.get('timestamp')}")
+        print("-" * 65 + "\n")
         return
 
     if args.tracker:
@@ -813,7 +862,7 @@ def main():
             description="Your Discord real-time notification integration is active and working properly!",
             fields=[
                 {"name": "Status", "value": "🟢 Connected & Live", "inline": True},
-                {"name": "Engine", "value": "Google Antigravity SDK", "inline": True},
+                {"name": "Engine", "value": "Antigravity Organic Outreach Engine", "inline": True},
             ],
             color=0x22C55E
         )
@@ -821,6 +870,10 @@ def main():
             print("[✓] Success! Check your Discord channel for the notification.\n")
         else:
             print("[!] Failed to deliver Discord webhook. Please verify the URL.\n")
+        return
+
+    if args.scan:
+        asyncio.run(run_lightweight_sweep(notify_discord=True))
         return
 
     if args.discord_bot:
@@ -840,8 +893,8 @@ def main():
         asyncio.run(start_periodic_daemon(interval_seconds=args.interval))
         return
 
-    # Default: Run unified workflow
-    asyncio.run(run_unified_workflow())
+    # Default: Run lightweight job & outreach sweep
+    asyncio.run(run_lightweight_sweep(notify_discord=True))
 
 if __name__ == "__main__":
     main()

@@ -161,33 +161,32 @@ Current verified applications dispatched and recorded in [`data/applied_jobs_tra
 job-automation-smtp/
 ├── .env                          # Real Gmail SMTP credentials & alert email
 ├── .env.example                  # Template configuration file
-├── requirements.txt              # Dependencies (google-antigravity, httpx, openpyxl, ddgs, etc.)
+├── requirements.txt              # Dependencies (httpx, openpyxl, ddgs, discord.py, etc.)
 ├── config.py                     # Central configuration loader
-├── discord_bot.py                # Interactive Discord DM Bot & 1-Click Apply view
-├── DISCORD_BOT_GUIDE.md          # 2-minute Discord bot setup and command guide
-├── run.py                        # Unified CLI runner with all command flags
-├── workflow.py                   # Antigravity SDK Agent orchestration
-├── antigravity_cli_agent.py      # Zero-API-key bridge leveraging authenticated agy session
+├── discord_bot.py                # Hermes-style autonomous Discord assistant & 1-Click apply view
+├── DISCORD_BOT_GUIDE.md          # Discord bot setup and command guide
+├── run.py                        # Unified lightweight CLI runner with all command flags
 ├── test_smtp.py                  # Standalone SMTP connection tester
 ├── data/
-│   ├── your_cv.pdf               # Your CV PDF attached to applications (or any *.pdf in data/)
+│   ├── Ahmad_Faraz_CV.pdf        # Candidate CV attached to all applications
 │   ├── applied_jobs_tracker.xlsx # Formatted Excel tracking workbook (Anti-duplicate source)
 │   ├── applied_jobs_tracker.csv  # Companion CSV file
-│   ├── pasted_jobs.json          # Queue for copy-pasted job opportunities
-│   └── jobs_database.json        # Persistent database for scored opportunities
+│   └── pasted_jobs.json          # Queue for copy-pasted job opportunities
 └── tools/
     ├── __init__.py
     ├── browser_tool.py           # HTTPX browser agent & contact email regex extractor
     ├── discord_alert_tool.py     # Discord Webhook notifications for applications & replies
     ├── email_tool.py             # SMTP dispatcher with anti-duplicate check & CV attachment
     ├── excel_tracker_tool.py     # openpyxl Excel tracking and deduplication engine
-    ├── inbox_listener_tool.py    # Gmail IMAP listener & interview invite classifier
-    ├── job_scanner_tool.py       # LinkedIn public guest crawler & pasted queue manager
-    ├── pitch_customizer_tool.py  # Dynamic Skills Customizer tailored to job specs
-    ├── post_parser_tool.py       # Smart raw post parser (auto extracts company, role, email)
+    ├── followup_tool.py          # Intelligent 4-day follow-up bump & portal kit engine
+    ├── inbox_listener_tool.py    # Multi-factor domain IMAP listener & interview classifier
+    ├── live_job_crawler.py       # Live Multi-Source Job Discovery Engine (LinkedIn/Remotive)
+    ├── ocr_tool.py               # Mobile screenshot native OCR engine
+    ├── pitch_customizer_tool.py  # Zero-emoji dynamic skills pitch customizer
+    ├── post_parser_tool.py       # Contextual AI smart raw post parser
+    ├── recruiter_hunter_tool.py  # Automated recruiter discovery & verified employer mapping
     ├── web_search_tool.py        # DDGS live web search & natural language prompt parser
-    ├── read_sent_emails.py       # Gmail IMAP utility used to inspect sent email patterns
-    └── tracker_tool.py           # State management & qualification tracker
+    └── read_sent_emails.py       # Gmail IMAP utility used to inspect sent email patterns
 ```
 
 ---

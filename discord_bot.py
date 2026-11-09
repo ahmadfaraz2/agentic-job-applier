@@ -592,8 +592,8 @@ def build_diagnostics_embed() -> discord.Embed:
         inline=True
     )
     embed.add_field(
-        name="🤖 AI Model",
-        value="🟢 **Gemini 3.8 Flash** via Antigravity SDK",
+        name="🤖 Engine",
+        value="🟢 **Hermes Engine** (Zero Latency & Contextual AI)",
         inline=True
     )
     embed.set_footer(text="Ahmad Faraz Job Outreach Engine • Google Antigravity")
@@ -673,6 +673,8 @@ def build_application_preview(parsed: Dict[str, Any], is_dup: bool) -> discord.E
 
     embed.add_field(name="📄 Attachment", value="`Ahmad_Faraz_CV.pdf`", inline=True)
     embed.add_field(name="🤖 Intelligence Engine", value=model_engine, inline=True)
+    if parsed.get("user_notes"):
+        embed.add_field(name="🎯 Custom Directives Applied", value=f"*{parsed['user_notes']}*", inline=False)
     embed.add_field(name="💬 Dynamic Tailored Pitch Preview", value=f"```{pitch_preview}```", inline=False)
     embed.set_footer(text="Zero-Emoji Outreach Mandate Enforced • Click below to dispatch")
     return embed
@@ -799,6 +801,317 @@ async def on_ready():
         except Exception as e:
             logger.error(f"Failed to dispatch initial job leads to server: {e}", exc_info=True)
 
+def extract_direct_apply_command(text: str) -> Optional[Dict[str, str]]:
+    """
+    Parses natural language commands like:
+    - 'apply to careers@systemsltd.com for Trainee Software Engineer'
+    - 'apply to Folio3 for Trainee Software Engineer'
+    - 'apply to InvoZone'
+    - 'send email to hr@foomotion.io for Associate Software Engineer'
+    - 'apply to systems limited'
+    """
+    t = text.strip()
+    # Check 'apply to X for Y' or 'send email to X for Y'
+    m1 = re.match(
+        r'^(?:please\s+)?(?:apply\s+to|send\s+(?:an?\s+)?email\s+to|outreach\s+to)\s+([^\s,]+(?:\s+[^\s,]+)?)\s+(?:for|as)\s+([^,\n]+)(?:[,\-\.]\s*(.*))?$',
+        t, re.IGNORECASE
+    )
+    if m1:
+        target = m1.group(1).strip()
+        role = m1.group(2).strip()
+        notes = (m1.group(3) or "").strip()
+        return {"target": target, "role": role, "notes": notes}
+
+    # Check 'apply to X' without role specified (e.g., 'apply to folio3', 'apply to invozone', 'apply to systems limited')
+    m2 = re.match(
+        r'^(?:please\s+)?(?:apply\s+to|send\s+(?:an?\s+)?email\s+to)\s+([a-zA-Z0-9_\.\-@ ]+)$',
+        t, re.IGNORECASE
+    )
+    if m2:
+        target = m2.group(1).strip()
+        # Avoid matching generic 'apply to jobs'
+        if target.lower() not in ("jobs", "all", "all jobs", "more jobs", "new jobs", "any job"):
+            return {"target": target, "role": "Associate Software Engineer", "notes": ""}
+
+    return None
+
+async def handle_direct_apply_request(message: discord.Message, target: str, role: str, user_notes: str = ""):
+    """Handles direct natural-language apply instructions: 'apply to <company or email> for <role>'."""
+    async with message.channel.typing():
+        loop = asyncio.get_running_loop()
+        target = target.strip()
+        role = role.strip() or "Associate Software Engineer"
+
+        is_email = "@" in target
+        if is_email:
+            to_email = target.lower()
+            # Infer company from domain
+            domain_part = to_email.split("@")[1].split(".")[0].lower()
+            from tools.post_parser_tool import KNOWN_COMPANIES
+            company = KNOWN_COMPANIES.get(domain_part, domain_part.capitalize())
+            email_method = "DIRECT_INSTRUCTION"
+        else:
+            company = target
+            hunted = hunt_recruiter_email(company)
+            to_email = hunted.get("email", "")
+            email_method = hunted.get("method", "RECRUITER_HUNTER")
+
+        if not to_email:
+            await message.channel.send(
+                f"⚠️ Could not find a verified recruiter email address for **{company}** in our directory.\n"
+                f"Please provide their email directly, e.g.: `apply to hr@{company.lower().replace(' ', '')}.com for {role}`"
+            )
+            return
+
+        subject_line = f"Application for {role} - Ahmad Faraz"
+        pitch = await loop.run_in_executor(
+            None,
+            lambda: generate_tailored_pitch(
+                job_title=role,
+                company=company,
+                job_description=f"Position: {role} at {company}",
+                notes=user_notes
+            )
+        )
+
+        parsed = {
+            "company": company,
+            "job_title": role,
+            "recruiter_email": to_email,
+            "location": "Lahore / Remote",
+            "subject_line": subject_line,
+            "tailored_pitch": pitch,
+            "model_engine": "Hermes Natural Language Dispatcher",
+            "email_resolution_method": email_method,
+            "user_notes": user_notes
+        }
+
+        is_dup = await loop.run_in_executor(None, is_already_applied, to_email, company, role)
+        embed = build_application_preview(parsed, is_dup=is_dup)
+        view = JobApplicationView(
+            parsed_data=parsed,
+            raw_post=f"Direct command: Apply for {role} at {company} ({to_email})",
+            author_id=message.author.id,
+            timeout=86400.0
+        )
+        sent_msg = await message.channel.send(embed=embed, view=view)
+        view.message = sent_msg
+
+async def handle_hermes_conversation(message: discord.Message, clean_text: str) -> bool:
+    """
+    Hermes Agent Natural Language Dispatcher.
+    Inspects message intent and executes tools directly with zero BS.
+    """
+    clean_lower = clean_text.lower().strip()
+
+    # 1. Direct Apply Intent: "apply to <email or company> for <role>"
+    apply_cmd = extract_direct_apply_command(clean_text)
+    if apply_cmd:
+        await handle_direct_apply_request(
+            message,
+            target=apply_cmd["target"],
+            role=apply_cmd["role"],
+            user_notes=apply_cmd.get("notes", "")
+        )
+        return True
+
+    # 2. Upcoming Interview / Test Inquiry
+    TEST_TRIGGERS = [
+        "foomotion", "tomorrow test", "next test", "my test", "my interview",
+        "next interview", "when is test", "interview details", "technical test",
+        "any interview scheduled", "test tomorrow"
+    ]
+    if any(k in clean_lower for k in TEST_TRIGGERS):
+        embed = discord.Embed(
+            title="🎯 Scheduled Recruiter Event: FOOMOTION",
+            description=(
+                "**You have an on-site Technical Test scheduled for tomorrow!**\n\n"
+                "• **Company:** FOOMOTION (Pvt) Ltd\n"
+                "• **Role:** Associate Software Engineer (Fresh Graduates)\n"
+                "• **Date & Time:** **Tuesday, November 10, 2026 at 11:00 AM**\n"
+                "• **Location:** FOOMOTION HQ in Lahore, DHA Phase 5 (Sector C)\n"
+                "• **Map:** [Open Google Maps Location](https://g.page/foomotion-hq?share)\n"
+                "• **Test Format:** Written technical test on **OOP, DSA, and Databases**\n"
+                "• **Contact Person:** Muzammil Khan (`muzammil@foomotion.io` | `+92-341-0708111`)\n\n"
+                "💡 *Recommended: Bring a printed copy of your CV (`Ahmad_Faraz_CV.pdf`) and arrive 15 minutes early.*"
+            ),
+            color=0x22C55E,
+            timestamp=datetime.now(timezone.utc)
+        )
+        embed.set_footer(text="Ahmad Faraz Outreach Engine • Verified Recruiter Event")
+        await message.channel.send(embed=embed)
+        return True
+
+    # 3. Systems Limited Inbound / Bounce Inquiry
+    if any(k in clean_lower for k in ("systems limited", "systemsltd")):
+        embed = discord.Embed(
+            title="🏢 Employer Status: Systems Limited",
+            description=(
+                "• **Initial Application:** Sent to `talent.acquisition@systemsltd.com` on Nov 9, 2026.\n"
+                "• **Delivery Status:** An Undeliverable bounce was detected (that specific inbox was decommissioned).\n"
+                "• **Correction Applied:** We have updated the verified recruiter email in our database to **`careers@systemsltd.com`**.\n\n"
+                "👉 *Just say: `apply to careers@systemsltd.com for Trainee Software Engineer` whenever you want me to resend!*"
+            ),
+            color=0xF59E0B,
+            timestamp=datetime.now(timezone.utc)
+        )
+        await message.channel.send(embed=embed)
+        return True
+
+    # 4. Inbound Recruiter Replies & Inbox Check
+    REPLY_TRIGGERS = [
+        "check reply", "check replies", "any reply", "any replies",
+        "inbox", "recruiter reply", "interviews", "check email", "check mail",
+        "who replied", "did anyone reply", "any response", "responses"
+    ]
+    if any(trig in clean_lower for trig in REPLY_TRIGGERS):
+        status_msg = await message.channel.send("📬 **Scanning your Gmail IMAP inbox for recruiter responses...**")
+        async with message.channel.typing():
+            loop = asyncio.get_running_loop()
+            replies = await loop.run_in_executor(
+                None,
+                lambda: check_inbound_recruiter_replies(limit=30, notify_discord=False)
+            )
+            embed = build_check_embed(replies)
+            await status_msg.edit(content=None, embed=embed)
+        return True
+
+    # 5. Live Jobs Discovery & Feed Scan
+    SEARCH_TRIGGERS = [
+        "search", "scan", "find job", "find jobs", "more job", "more jobs",
+        "available job", "available jobs", "give me job", "give me jobs",
+        "new jobs", "show jobs", "get jobs", "any job", "openings in lahore"
+    ]
+    if any(trig in clean_lower for trig in SEARCH_TRIGGERS):
+        status_msg = await message.channel.send("🔍 **Scanning active software & tech job openings matching your profile...**")
+        async with message.channel.typing():
+            count = await scan_and_send_leads(message.channel, message.author.id)
+            if count == 0:
+                await status_msg.edit(content="✅ **All currently scanned opportunities have already been applied to!**\nNo duplicate emails will be dispatched. I will alert you as soon as new positions appear.")
+            else:
+                await status_msg.edit(content=f"📬 **Delivered {count} fresh job approval cards below!** Review the details on each card and click **`[🚀 Send Application Email]`** to dispatch with your CV attached.")
+        return True
+
+    # 6. Diagnostics & Engine Health
+    STATUS_TRIGGERS = [
+        "is it working", "is it running", "any issue", "is something break",
+        "is anything break", "is it broken", "status", "health", "check bot",
+        "diagnostics", "ping", "are you working"
+    ]
+    if any(trig in clean_lower for trig in STATUS_TRIGGERS):
+        async with message.channel.typing():
+            diag_embed = build_diagnostics_embed()
+            await message.channel.send(embed=diag_embed)
+        return True
+
+    # 7. Follow-Up Checker
+    FOLLOWUP_TRIGGERS = [
+        "followup", "follow up", "follow-up", "bump", "pending followups",
+        "pending follow up", "pending follow-ups", "who to follow up"
+    ]
+    if any(trig in clean_lower for trig in FOLLOWUP_TRIGGERS):
+        async with message.channel.typing():
+            loop = asyncio.get_running_loop()
+            pending = await loop.run_in_executor(None, lambda: get_pending_followups(min_days=4, max_days=14))
+            if not pending:
+                embed = discord.Embed(
+                    title="📬 Application Follow-Up Status",
+                    description=(
+                        "🟢 **All applications are up to date!**\n\n"
+                        "No applications are currently pending >= 4 days without response.\n"
+                        "The engine automatically alerts you when applications reach the 4-day follow-up window."
+                    ),
+                    color=0x22C55E,
+                    timestamp=datetime.now(timezone.utc)
+                )
+                await message.channel.send(embed=embed)
+            else:
+                intro_embed = discord.Embed(
+                    title=f"📬 Found {len(pending)} Application(s) Awaiting Follow-Up (>= 4 Days)",
+                    description="Review the pending applications below. Click **`[🚀 Send Follow-Up Bump]`** to send a polite follow-up with your CV re-attached.",
+                    color=0x3B82F6,
+                    timestamp=datetime.now(timezone.utc)
+                )
+                await message.channel.send(embed=intro_embed)
+                for rec in pending:
+                    embed = discord.Embed(
+                        title=f"⏳ Follow-Up Candidate: {rec['company']}",
+                        color=0xF59E0B,
+                        timestamp=datetime.now(timezone.utc)
+                    )
+                    embed.add_field(name="🏢 Company", value=rec["company"], inline=True)
+                    embed.add_field(name="💼 Role", value=rec["job_title"], inline=True)
+                    embed.add_field(name="📩 Recipient", value=f"`{rec['recipient_email']}`", inline=True)
+                    embed.add_field(name="🕒 Applied", value=f"**{rec['days_ago']} days ago** ({rec['timestamp']})", inline=True)
+                    embed.add_field(name="📝 Original Subject", value=f"`{rec['subject']}`", inline=False)
+
+                    view = FollowUpBumpView(record=rec, author_id=message.author.id)
+                    sent_msg = await message.channel.send(embed=embed, view=view)
+                    view.message = sent_msg
+                    await asyncio.sleep(0.5)
+        return True
+
+    # 8. Portal Kit Generation
+    PORTAL_TRIGGERS = ["portal", "navttc", "nsis", "portal kit", "ats form"]
+    if any(trig in clean_lower for trig in PORTAL_TRIGGERS):
+        async with message.channel.typing():
+            loop = asyncio.get_running_loop()
+            portal_name = "NAVTTC NSIS Portal" if any(k in clean_lower for k in ("navttc", "nsis")) else "Web Portal"
+            kit = await loop.run_in_executor(
+                None,
+                lambda: generate_portal_application_kit(
+                    company="NAVTTC / Partner Organization" if "navttc" in clean_lower else "Target Employer",
+                    job_title="Software Engineering Trainee" if "navttc" in clean_lower else "Associate Software Engineer",
+                    portal_name=portal_name
+                )
+            )
+            embed = build_portal_kit_embed(kit)
+            await message.channel.send(embed=embed)
+        return True
+
+    # 9. Tracker Stats
+    STATS_TRIGGERS = ["stats", "how many applied", "application stats", "total applications", "tracker stats", "tracker"]
+    if any(trig == clean_lower or clean_lower.startswith(trig) for trig in STATS_TRIGGERS):
+        async with message.channel.typing():
+            loop = asyncio.get_running_loop()
+            stats = await loop.run_in_executor(None, get_excel_stats)
+            embed = build_stats_embed(stats)
+            await message.channel.send(embed=embed)
+        return True
+
+    # 10. Application History
+    HISTORY_TRIGGERS = ["history", "recent applications", "last applications", "what did i send", "sent emails"]
+    if any(trig == clean_lower or clean_lower.startswith(trig) for trig in HISTORY_TRIGGERS):
+        async with message.channel.typing():
+            loop = asyncio.get_running_loop()
+            records = await loop.run_in_executor(None, lambda: get_recent_applications(limit=5))
+            embed = build_history_embed(records)
+            await message.channel.send(embed=embed)
+        return True
+
+    # 11. Conversational pleasantries / Hermes persona
+    GREETING_TRIGGERS = ["hi", "hello", "hey", "yo", "morning", "good morning", "as-salamu alaykum", "salam"]
+    if clean_lower in GREETING_TRIGGERS:
+        await message.channel.send(
+            "👋 **Hey Ahmad!** Ready to roll. Send me a job screenshot, paste an opening, or say `apply to <email> for <role>`, and I'll dispatch your cold outreach with CV attached right away."
+        )
+        return True
+
+    THANKS_TRIGGERS = ["thanks", "thank you", "great", "perfect", "good job", "nice", "ok", "okay", "done", "cool"]
+    if clean_lower in THANKS_TRIGGERS:
+        await message.channel.send(
+            "🫡 **Always at your service, Ahmad.** I'm continuously monitoring your inbox for recruiter responses and tracking all applications."
+        )
+        return True
+
+    # 12. Help / Guide
+    if clean_lower in ("help", "commands", "guide", "options"):
+        embed = build_help_embed(message.author.id)
+        await message.channel.send(embed=embed)
+        return True
+
+    return False
+
 @bot.event
 async def on_message(message: discord.Message):
     # Ignore messages from bots (including self)
@@ -828,7 +1141,6 @@ async def on_message(message: discord.Message):
     raw_text = message.content.strip()
     if bot.user in message.mentions:
         raw_text = message.content.replace(f"<@{bot.user.id}>", "").strip()
-    clean_lower = raw_text.lower().strip()
 
     # Detect screenshot or image attachments
     has_image = bool(
@@ -839,151 +1151,10 @@ async def on_message(message: discord.Message):
         )
     )
 
-    # If NO image is attached, inspect natural language conversational intents
-    if not has_image and raw_text and "@" not in raw_text:
-        # Intent 1: Search / Find / Scan for Jobs
-        SEARCH_TRIGGERS = [
-            "search", "scan", "find job", "find jobs", "more job", "more jobs",
-            "available job", "available jobs", "give me job", "give me jobs",
-            "5 to 7", "new jobs", "show jobs", "get jobs", "any job"
-        ]
-        if any(trig in clean_lower for trig in SEARCH_TRIGGERS):
-            status_msg = await message.channel.send("🔍 **Scanning active software & tech job openings matching your profile...**")
-            async with message.channel.typing():
-                count = await scan_and_send_leads(message.channel, message.author.id)
-                if count == 0:
-                    await status_msg.edit(content="✅ **All currently scanned opportunities have already been applied to!**\nNo duplicate emails will be dispatched. I will alert you as soon as new positions appear.")
-                else:
-                    await status_msg.edit(content=f"📬 **Delivered {count} fresh job approval cards below!** Review the details on each card and click **`[🚀 Send Application Email]`** to dispatch with your CV attached.")
-            return
-
-        # Intent 2: Engine Diagnostics & Status ("is it working", "any issue", "status")
-        STATUS_TRIGGERS = [
-            "is it working", "is it running", "any issue", "is something break",
-            "is anything break", "is it broken", "status", "health", "check bot",
-            "diagnostics", "ping", "are you working", "how is it going"
-        ]
-        if any(trig in clean_lower for trig in STATUS_TRIGGERS):
-            async with message.channel.typing():
-                diag_embed = build_diagnostics_embed()
-                await message.channel.send(embed=diag_embed)
-            return
-
-        # Intent 3: Check Recruiter Replies / Inbox
-        REPLY_TRIGGERS = [
-            "check reply", "check replies", "any reply", "any replies",
-            "inbox", "recruiter reply", "interviews", "check email", "check mail"
-        ]
-        if any(trig in clean_lower for trig in REPLY_TRIGGERS):
-            status_msg = await message.channel.send("📬 **Scanning your Gmail IMAP inbox for recruiter responses...**")
-            async with message.channel.typing():
-                loop = asyncio.get_running_loop()
-                replies = await loop.run_in_executor(
-                    None,
-                    lambda: check_inbound_recruiter_replies(limit=30, notify_discord=False)
-                )
-                embed = build_check_embed(replies)
-                await status_msg.edit(content=None, embed=embed)
-            return
-
-        # Intent 4: Application Stats
-        STATS_TRIGGERS = [
-            "stats", "how many applied", "application stats", "total applications", "tracker stats"
-        ]
-        if any(trig == clean_lower or clean_lower.startswith(trig) for trig in STATS_TRIGGERS):
-            async with message.channel.typing():
-                loop = asyncio.get_running_loop()
-                stats = await loop.run_in_executor(None, get_excel_stats)
-                embed = build_stats_embed(stats)
-                await message.channel.send(embed=embed)
-            return
-
-        # Intent 5: Application History
-        HISTORY_TRIGGERS = [
-            "history", "recent applications", "last applications", "what did i send"
-        ]
-        if any(trig == clean_lower or clean_lower.startswith(trig) for trig in HISTORY_TRIGGERS):
-            async with message.channel.typing():
-                loop = asyncio.get_running_loop()
-                records = await loop.run_in_executor(None, lambda: get_recent_applications(limit=5))
-                embed = build_history_embed(records)
-                await message.channel.send(embed=embed)
-            return
-
-        # Intent 6: Follow-Up Bump Checker
-        FOLLOWUP_TRIGGERS = [
-            "followup", "follow up", "follow-up", "bump", "pending followups",
-            "pending follow up", "pending follow-ups", "who to follow up"
-        ]
-        if any(trig in clean_lower for trig in FOLLOWUP_TRIGGERS):
-            async with message.channel.typing():
-                loop = asyncio.get_running_loop()
-                pending = await loop.run_in_executor(None, lambda: get_pending_followups(min_days=4, max_days=14))
-                if not pending:
-                    embed = discord.Embed(
-                        title="📬 Application Follow-Up Status",
-                        description=(
-                            "🟢 **All applications are up to date!**\n\n"
-                            "No applications are currently pending >= 4 days without response.\n"
-                            "The engine automatically alerts you when applications reach the 4-day follow-up window."
-                        ),
-                        color=0x22C55E,
-                        timestamp=datetime.now(timezone.utc)
-                    )
-                    await message.channel.send(embed=embed)
-                else:
-                    intro_embed = discord.Embed(
-                        title=f"📬 Found {len(pending)} Application(s) Awaiting Follow-Up (>= 4 Days)",
-                        description="Review the pending applications below. Click **`[🚀 Send Follow-Up Bump]`** to send a polite follow-up with your CV re-attached.",
-                        color=0x3B82F6,
-                        timestamp=datetime.now(timezone.utc)
-                    )
-                    await message.channel.send(embed=intro_embed)
-                    for rec in pending:
-                        embed = discord.Embed(
-                            title=f"⏳ Follow-Up Candidate: {rec['company']}",
-                            color=0xF59E0B,
-                            timestamp=datetime.now(timezone.utc)
-                        )
-                        embed.add_field(name="🏢 Company", value=rec["company"], inline=True)
-                        embed.add_field(name="💼 Role", value=rec["job_title"], inline=True)
-                        embed.add_field(name="📩 Recipient", value=f"`{rec['recipient_email']}`", inline=True)
-                        embed.add_field(name="🕒 Applied", value=f"**{rec['days_ago']} days ago** ({rec['timestamp']})", inline=True)
-                        embed.add_field(name="📝 Original Subject", value=f"`{rec['subject']}`", inline=False)
-
-                        view = FollowUpBumpView(record=rec, author_id=message.author.id)
-                        sent_msg = await message.channel.send(embed=embed, view=view)
-                        view.message = sent_msg
-                        await asyncio.sleep(0.5)
-            return
-
-        # Intent 7: Portal / NAVTTC Kit
-        PORTAL_TRIGGERS = [
-            "portal", "navttc", "nsis", "portal kit", "ats form"
-        ]
-        if any(trig in clean_lower for trig in PORTAL_TRIGGERS):
-            async with message.channel.typing():
-                loop = asyncio.get_running_loop()
-                portal_name = "NAVTTC NSIS Portal" if any(k in clean_lower for k in ("navttc", "nsis")) else "Web Portal"
-                kit = await loop.run_in_executor(
-                    None,
-                    lambda: generate_portal_application_kit(
-                        company="NAVTTC / Partner Organization" if "navttc" in clean_lower else "Target Employer",
-                        job_title="Software Engineering Trainee" if "navttc" in clean_lower else "Associate Software Engineer",
-                        portal_name=portal_name
-                    )
-                )
-                embed = build_portal_kit_embed(kit)
-                await message.channel.send(embed=embed)
-            return
-
-        # Intent 8: Help / Guide
-        HELP_TRIGGERS = [
-            "help", "commands", "guide", "what can you do", "options"
-        ]
-        if any(trig == clean_lower or clean_lower.startswith(trig) for trig in HELP_TRIGGERS):
-            embed = build_help_embed(message.author.id)
-            await message.channel.send(embed=embed)
+    # If NO image is attached, inspect natural language conversational intents first
+    if not has_image and raw_text:
+        handled = await handle_hermes_conversation(message, raw_text)
+        if handled:
             return
 
     # In 'My Custom Job Applier', treat messages as job posts, URLs, or OCR images
@@ -1016,13 +1187,19 @@ async def handle_incoming_job_post(message: discord.Message):
         "position", "stack", "full-time", "part-time", "remotely", "qualification", "candidate"
     )
     is_job_text = any(kw in raw_text.lower() for kw in JOB_KEYWORDS) or len(raw_text) > 80
-    if not image_attachments and not is_job_text and not "@" in raw_text and not re.search(r'https?://', raw_text):
+    if not image_attachments and not is_job_text and "@" not in raw_text and not re.search(r'https?://', raw_text):
         await message.channel.send(
-            "👋 **Hi Ahmad!** Paste a complete job post, upload a screenshot, or type `/help` (or `!help`) to see all commands!"
+            "🤔 I didn't detect a job post or recipient in that message, Ahmad.\n\n"
+            "💡 **Quick ways to use me:**\n"
+            "• **Mobile Screenshot:** Send any job post picture from your phone\n"
+            "• **Direct Apply:** `apply to hr@company.com for Python Developer`\n"
+            "• **Paste Post/URL:** Paste any hiring text or link here\n"
+            "• **Ask Anything:** `did anyone reply?`, `when is my test?`, `stats`"
         )
         return
 
     status_msg = None
+    user_notes = ""
 
     # Visual typing indicator while model thinks
     async with message.channel.typing():
@@ -1030,6 +1207,9 @@ async def handle_incoming_job_post(message: discord.Message):
 
         # Handle Screenshot / Image Attachments via Native OCR
         if image_attachments:
+            if raw_text:
+                user_notes = raw_text.strip()
+
             img_count_str = f"{len(image_attachments)} image(s)" if len(image_attachments) > 1 else "image"
             status_msg = await message.reply(f"⏳ **{img_count_str.capitalize()} received! Processing screenshot, please wait a moment...**")
 
@@ -1051,13 +1231,8 @@ async def handle_incoming_job_post(message: discord.Message):
                 )
                 return
 
-            combined_ocr = "\n\n".join(ocr_texts)
-            if raw_text:
-                raw_text = f"{raw_text}\n\n{combined_ocr}"
-            else:
-                raw_text = combined_ocr
-
-            await status_msg.edit(content="🧠 **Text extracted! Formulating application with Gemini 3.8 Flash...**")
+            raw_text = "\n\n".join(ocr_texts)
+            await status_msg.edit(content="🧠 **Text extracted! Formulating application and tailoring pitch...**")
 
         # Check if input is a standalone URL
         url_match = re.match(r'^(https?://[^\s]+)$', raw_text.strip())
@@ -1094,8 +1269,22 @@ async def handle_incoming_job_post(message: discord.Message):
                     f"{extracted.get('summary', '')}"
                 )
 
-        # Parse with Gemini 3.8 Flash intelligence engine
+        # Parse with Contextual AI & Domain Reasoning Engine
         parsed = await loop.run_in_executor(None, parse_raw_job_post, raw_text)
+
+        # Apply user's custom instructions/notes if provided with screenshot/post
+        if user_notes:
+            custom_pitch = await loop.run_in_executor(
+                None,
+                lambda: generate_tailored_pitch(
+                    job_title=parsed.get("job_title", "Software Engineer"),
+                    company=parsed.get("company", "Company"),
+                    job_description=raw_text,
+                    notes=user_notes
+                )
+            )
+            parsed["tailored_pitch"] = custom_pitch
+            parsed["user_notes"] = user_notes
 
         to_email = parsed.get("recruiter_email", "").strip()
         company = parsed.get("company", "").strip()

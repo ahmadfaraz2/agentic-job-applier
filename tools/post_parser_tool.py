@@ -16,8 +16,6 @@ import json
 import logging
 import os
 import re
-import shutil
-import subprocess
 from typing import Any, Dict, List, Optional
 
 from tools.pitch_customizer_tool import generate_tailored_pitch
@@ -377,112 +375,78 @@ def _infer_location(text: str) -> str:
         return ", ".join(locs)
     return "Lahore / Remote"
 
-def _get_agy_bin() -> Optional[str]:
-    """Finds real agy binary path for model reasoning."""
-    path = shutil.which("agy.exe") or shutil.which("agy")
-    if path:
-        return path
-    candidates = [
-        os.path.expanduser("~\\AppData\\Local\\agy\\bin\\agy.exe"),
-        "C:\\Users\\ahmad\\AppData\\Local\\agy\\bin\\agy.exe",
-        os.path.expanduser("~\\.gemini\\antigravity-cli\\bin\\agy.exe"),
-    ]
-    for c in candidates:
-        if os.path.exists(c):
-            return c
-    return None
-
-def _parse_with_antigravity_model(raw_text: str, candidate_name: str = CANDIDATE_NAME) -> Optional[Dict[str, Any]]:
-    """Uses the authenticated Google Antigravity Gemini 3.8 Flash session to reason and extract job intelligence."""
-    agy_bin = _get_agy_bin()
-    if not agy_bin:
+def _parse_with_gemini_api(raw_text: str, candidate_name: str = CANDIDATE_NAME) -> Optional[Dict[str, Any]]:
+    """Uses direct Gemini REST API if GEMINI_API_KEY is configured (<1s response, zero subprocess)."""
+    api_key = getattr(Config, "GEMINI_API_KEY", "") or os.getenv("GEMINI_API_KEY", "")
+    if not api_key:
         return None
 
     candidate_email = Config.SMTP_FROM_EMAIL or "Ahmad Faraz"
-    prompt = f"""You are the Antigravity Executive Outreach Intelligence Engine for Ahmad Faraz ({candidate_email}).
-Your job is to read this raw hiring post, reason carefully, and extract structured job intelligence according to strict rules:
+    prompt = f"""You are the Executive Outreach Intelligence Engine for Ahmad Faraz ({candidate_email}).
+Read this raw hiring post, reason carefully, and extract structured job intelligence:
 
 CRITICAL RULES:
-1. STRICT ZERO EMOJIS: Never include emojis in company, job title, subject line, or pitch.
-2. CANONICAL JOB TITLE: Extract the pure, corporate job title (e.g. 'DevOps Intern', 'Software Engineering Intern', 'Associate Python Engineer'). NEVER include marketing adjectives (e.g. 'Enthusiastic and Motivated'), bullet numbers ('1️⃣'), or contract duration ('2-3 month paid').
-3. RECRUITER SUBJECT LINE: If the post specifies a subject template like 'Subject: SE Intern – [Your Name]', replace placeholders with '{candidate_name}'. If no subject is specified, format as: 'Application for [Job Title] - {candidate_name}'.
-4. AUTHENTIC TAILORED PITCH: Ahmad Faraz is a BS Software Engineering graduate. He has practical hands-on experience in Python (Django, FastAPI), React, PostgreSQL, MongoDB, Playwright/Selenium test automation, Git/Linux, and modern AI coding tools (Cursor and Claude Code). Tailor the middle pitch paragraph (2-3 sentences, <100 words) specifically to the technologies mentioned in the post. Keep tone humble, authentic, direct, and organic.
+1. STRICT ZERO EMOJIS: Never include emojis anywhere.
+2. CANONICAL JOB TITLE: Extract the pure, corporate job title (e.g. 'Software Engineering Intern', 'Associate Python Engineer'). No marketing adjectives.
+3. RECRUITER SUBJECT LINE: If the post specifies a subject template like 'Subject: SE Intern - [Your Name]', replace placeholders with '{candidate_name}'. Otherwise format as: 'Application for [Job Title] - {candidate_name}'.
+4. AUTHENTIC TAILORED PITCH: Ahmad Faraz is a BS Software Engineering graduate with hands-on skills in Python (FastAPI, Django), React, PostgreSQL, Playwright/Selenium test automation, and Agentic AI workflows. Write an authentic middle pitch paragraph (2-3 sentences, <90 words) tailored to the role. Keep tone humble and direct.
 
-Raw Post Text:
+Raw Post:
 \"\"\"
-{raw_text}
+{raw_text[:2000]}
 \"\"\"
 
-Respond with ONLY a pure JSON object in this exact schema (no markdown fences, no conversational text, no tool calls):
+Respond with ONLY a pure JSON object:
 {{
   "company": "Company Name",
-  "job_title": "Clean Canonical Job Title",
+  "job_title": "Clean Job Title",
   "recruiter_email": "recruiter@example.com",
   "location": "City or Remote",
-  "subject_line": "Subject Line with {candidate_name} and ZERO emojis",
-  "tailored_pitch": "Humble, tailored middle pitch paragraph with ZERO emojis"
+  "subject_line": "Subject Line",
+  "tailored_pitch": "Middle pitch paragraph"
 }}
 """
-
-    cmd = [
-        agy_bin,
-        "-p", prompt,
-        "--output-format", "json",
-        "--disable-slash-commands",
-        "--dangerously-skip-permissions"
-    ]
-
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={api_key}"
+    payload = {
+        "contents": [{"parts": [{"text": prompt}]}],
+        "generationConfig": {"temperature": 0.2, "responseMimeType": "application/json"}
+    }
     try:
-        proc = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8", timeout=6)
-        if proc.returncode != 0:
-            logger.warning(f"Antigravity CLI returned code {proc.returncode}: {proc.stderr}")
-            return None
+        import httpx
+        with httpx.Client(timeout=4.0) as client:
+            resp = client.post(url, json=payload)
+            if resp.status_code == 200:
+                data = resp.json()
+                text = data["candidates"][0]["content"]["parts"][0]["text"].strip()
+                parsed_json = json.loads(text)
+                company = " ".join(strip_all_emojis(parsed_json.get("company", "")).split())
+                job_title = " ".join(strip_all_emojis(parsed_json.get("job_title", "")).split())
+                recruiter_email = strip_all_emojis(parsed_json.get("recruiter_email", "")).strip().lower()
+                location = " ".join(strip_all_emojis(parsed_json.get("location", "Pakistan / Remote")).split())
+                subject_line = " ".join(strip_all_emojis(parsed_json.get("subject_line", f"Application for {job_title} - {candidate_name}")).split())
+                pitch = strip_all_emojis(parsed_json.get("tailored_pitch", "")).strip()
 
-        data = json.loads(proc.stdout.strip())
-        response_text = data.get("response", "").strip()
+                emails = _extract_emails(raw_text)
+                if not recruiter_email and emails:
+                    recruiter_email = emails[0]
+                elif recruiter_email and recruiter_email not in emails:
+                    emails.insert(0, recruiter_email)
 
-        # Clean any accidental markdown fences
-        if "```json" in response_text:
-            response_text = response_text.split("```json")[1].split("```")[0].strip()
-        elif "```" in response_text:
-            response_text = response_text.split("```")[1].split("```")[0].strip()
-
-        parsed_json = json.loads(response_text)
-
-        # Validate required fields
-        if not parsed_json.get("company") or not parsed_json.get("job_title"):
-            return None
-
-        # Sanitize zero-emojis
-        company = " ".join(strip_all_emojis(parsed_json.get("company", "")).split())
-        job_title = " ".join(strip_all_emojis(parsed_json.get("job_title", "")).split())
-        recruiter_email = strip_all_emojis(parsed_json.get("recruiter_email", "")).strip().lower()
-        location = " ".join(strip_all_emojis(parsed_json.get("location", "Pakistan / Remote")).split())
-        subject_line = " ".join(strip_all_emojis(parsed_json.get("subject_line", f"Application for {job_title} - {candidate_name}")).split())
-        pitch = strip_all_emojis(parsed_json.get("tailored_pitch", "")).strip()
-
-        # Discovered emails fallback
-        emails = _extract_emails(raw_text)
-        if not recruiter_email and emails:
-            recruiter_email = emails[0]
-        elif recruiter_email and recruiter_email not in emails:
-            emails.insert(0, recruiter_email)
-
-        return {
-            "status": "SUCCESS",
-            "company": company,
-            "job_title": job_title,
-            "subject_line": subject_line,
-            "recruiter_email": recruiter_email,
-            "discovered_emails": emails,
-            "location": location,
-            "tailored_pitch": pitch,
-            "model_engine": "Gemini 3.8 Flash (Antigravity Model Intelligence)",
-            "raw_text_length": len(raw_text)
-        }
+                return {
+                    "status": "SUCCESS",
+                    "company": company,
+                    "job_title": job_title,
+                    "subject_line": subject_line,
+                    "recruiter_email": recruiter_email,
+                    "discovered_emails": emails,
+                    "location": location,
+                    "tailored_pitch": pitch,
+                    "model_engine": "Gemini 2.0 Flash REST API",
+                    "raw_text_length": len(raw_text)
+                }
     except Exception as e:
-        logger.warning(f"Antigravity model parsing exception: {e}. Falling back to rule hierarchy.")
-        return None
+        logger.warning(f"[PostParser] Gemini API exception: {e}")
+    return None
 
 def parse_raw_job_post(raw_text: str, candidate_name: str = CANDIDATE_NAME) -> Dict[str, Any]:
     """Parses raw LinkedIn posts, emails, or job listings into structured data using Contextual AI & Domain Reasoning Engine."""
@@ -492,7 +456,7 @@ def parse_raw_job_post(raw_text: str, candidate_name: str = CANDIDATE_NAME) -> D
 
     # 1. PRIMARY ENGINE: Fast Gemini API (if GEMINI_API_KEY configured)
     if getattr(Config, "GEMINI_API_KEY", ""):
-        model_result = _parse_with_antigravity_model(raw_text, candidate_name=candidate_name)
+        model_result = _parse_with_gemini_api(raw_text, candidate_name=candidate_name)
         if model_result and model_result.get("status") == "SUCCESS":
             return model_result
 
