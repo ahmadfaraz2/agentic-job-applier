@@ -231,9 +231,17 @@ class JobApplicationView(discord.ui.View):
             except Exception as e_send:
                 logger.error(f"Failed to post delivery confirmation to channel: {e_send}")
         else:
+            # Re-enable button on failure so user can retry immediately!
+            for child in self.children:
+                if isinstance(child, discord.ui.Button):
+                    child.disabled = False
+
             fail_embed = discord.Embed(
-                title="⚠️ Application Dispatch Failed",
-                description=f"Encountered an issue dispatching email:\n```\n{result}\n```",
+                title="⚠️ Application Dispatch Glitch (Retry Available)",
+                description=(
+                    f"Encountered an issue dispatching email to **{company}**:\n```\n{result}\n```\n"
+                    f"💡 **Button re-enabled:** Click **`[🚀 Send Application Email]`** again to retry."
+                ),
                 color=0xEF4444,
                 timestamp=datetime.now(timezone.utc)
             )
@@ -246,7 +254,7 @@ class JobApplicationView(discord.ui.View):
                     except Exception:
                         pass
             try:
-                await interaction.channel.send(f"⚠️ **Application Failed for {company}:**\n{result}")
+                await interaction.channel.send(f"⚠️ **Application failed for {company}:** `{result}`. You can click the button on the card above to retry.")
             except Exception:
                 pass
 

@@ -11,6 +11,8 @@ import mimetypes
 import os
 import re
 import smtplib
+import threading
+import time
 from email.message import EmailMessage
 from email.utils import formataddr
 from pathlib import Path
@@ -22,6 +24,9 @@ from tools.pitch_customizer_tool import generate_tailored_pitch
 from tools.discord_alert_tool import notify_application_sent
 
 logger = logging.getLogger(__name__)
+
+# Concurrency Lock for thread-safe SMTP dispatching
+SMTP_LOCK = threading.Lock()
 
 # Strict Zero-Emoji Filter for professional cold outreach
 EMOJI_PATTERN = re.compile(
@@ -162,30 +167,43 @@ def send_smtp_email(
                 except Exception as e:
                     logger.error(f"Failed to attach {path}: {e}")
 
-    try:
-        if Config.SMTP_USE_SSL or Config.SMTP_PORT == 465:
-            with smtplib.SMTP_SSL(Config.SMTP_HOST, Config.SMTP_PORT, timeout=20) as server:
-                server.login(Config.SMTP_USER, Config.SMTP_PASSWORD)
-                server.send_message(msg)
-        else:
-            with smtplib.SMTP(Config.SMTP_HOST, Config.SMTP_PORT, timeout=20) as server:
-                server.ehlo()
-                if Config.SMTP_USE_TLS:
-                    server.starttls()
-                    server.ehlo()
-                server.login(Config.SMTP_USER, Config.SMTP_PASSWORD)
-                server.send_message(msg)
+    with SMTP_LOCK:
+        max_retries = 3
+        last_err = ""
+        for attempt in range(1, max_retries + 1):
+            try:
+                if Config.SMTP_USE_SSL or Config.SMTP_PORT == 465:
+                    with smtplib.SMTP_SSL(Config.SMTP_HOST, Config.SMTP_PORT, timeout=25) as server:
+                        server.login(Config.SMTP_USER, Config.SMTP_PASSWORD)
+                        server.send_message(msg)
+                else:
+                    with smtplib.SMTP(Config.SMTP_HOST, Config.SMTP_PORT, timeout=25) as server:
+                        server.ehlo()
+                        if Config.SMTP_USE_TLS:
+                            server.starttls()
+                            server.ehlo()
+                        server.login(Config.SMTP_USER, Config.SMTP_PASSWORD)
+                        server.send_message(msg)
 
-        success_msg = f"Email successfully delivered to '{to_email}' with subject '{subject}' from Ahmad Faraz."
-        logger.info(success_msg)
-        return f"Success: {success_msg}"
+                success_msg = f"Email successfully delivered to '{to_email}' with subject '{subject}' from Ahmad Faraz."
+                logger.info(success_msg)
+                time.sleep(1.0)  # Gentle cooldown between sends to protect socket
+                return f"Success: {success_msg}"
 
-    except smtplib.SMTPAuthenticationError as e:
-        err = f"SMTP Authentication Error ({e.smtp_code}): Please check your Gmail App Password."
-        logger.error(err)
-        return f"Error: {err}"
-    except Exception as e:
-        err = f"Failed to send email via SMTP: {type(e).__name__} - {e}"
+            except smtplib.SMTPAuthenticationError as e:
+                err = f"SMTP Authentication Error ({e.smtp_code}): Please check your Gmail App Password."
+                logger.error(err)
+                return f"Error: {err}"
+            except (smtplib.SMTPServerDisconnected, smtplib.SMTPConnectError, ConnectionResetError, TimeoutError, OSError) as e:
+                last_err = f"{type(e).__name__} - {e}"
+                logger.warning(f"SMTP transient connection glitch on attempt {attempt}/{max_retries}: {last_err}. Retrying in 2.0s...")
+                time.sleep(2.0)
+            except Exception as e:
+                err = f"Failed to send email via SMTP: {type(e).__name__} - {e}"
+                logger.error(err)
+                return f"Error: {err}"
+
+        err = f"Failed to send email via SMTP after {max_retries} attempts: {last_err}"
         logger.error(err)
         return f"Error: {err}"
 
