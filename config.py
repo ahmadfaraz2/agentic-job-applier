@@ -81,6 +81,8 @@ class Config:
     # Discord Interactive Bot Configuration
     DISCORD_BOT_TOKEN: str = os.getenv("DISCORD_BOT_TOKEN", "")
     DISCORD_OWNER_ID: str = os.getenv("DISCORD_OWNER_ID", "")
+    DISCORD_GUILD_NAME: str = os.getenv("DISCORD_GUILD_NAME", "My Custom Job Applier")
+    DISCORD_GUILD_ID: Optional[int] = _get_int("DISCORD_GUILD_ID", 1566118066008629538)
 
     # Job Preferences
     JOB_SEARCH_QUERY: str = os.getenv("JOB_SEARCH_QUERY", "Python AI Agent Developer")

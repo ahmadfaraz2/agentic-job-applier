@@ -52,16 +52,73 @@ intents.message_content = True
 intents.dm_messages = True
 
 class AntigravityBot(commands.Bot):
-    """Custom Bot with automated global slash command synchronization."""
+    """Custom Bot with automated guild and global slash command synchronization."""
 
     async def setup_hook(self):
         try:
-            synced = await self.tree.sync()
-            logger.info(f"Successfully synced {len(synced)} application slash command(s) with Discord globally.")
+            guild_id = getattr(Config, "DISCORD_GUILD_ID", None)
+            if guild_id:
+                guild_obj = discord.Object(id=int(guild_id))
+                self.tree.copy_global_to(guild=guild_obj)
+                synced = await self.tree.sync(guild=guild_obj)
+                logger.info(f"Successfully synced {len(synced)} slash command(s) directly to server 'My Custom Job Applier' (ID: {guild_id}).")
+            synced_global = await self.tree.sync()
+            logger.info(f"Successfully synced {len(synced_global)} application slash command(s) with Discord globally.")
         except Exception as e:
             logger.error(f"Failed to sync slash commands with Discord: {e}", exc_info=True)
 
 bot = AntigravityBot(command_prefix="!", intents=intents, help_command=None)
+
+# ---------------------------------------------------------------------------
+# Security, Server Boundary & Permissions Verification
+# ---------------------------------------------------------------------------
+
+def is_authorized_user(user: discord.User | discord.Member) -> bool:
+    """Verifies that the user is the owner (Ahmad Faraz) if DISCORD_OWNER_ID is set."""
+    if not Config.DISCORD_OWNER_ID:
+        return True
+    return str(user.id) == str(Config.DISCORD_OWNER_ID).strip()
+
+def is_target_server(guild: Optional[discord.Guild]) -> bool:
+    """Strictly ensures all operations occur inside 'My Custom Job Applier' server (never DMs)."""
+    if guild is None:
+        return False
+    target_name = (getattr(Config, "DISCORD_GUILD_NAME", "") or "My Custom Job Applier").strip().lower()
+    if guild.name.strip().lower() == target_name:
+        return True
+    target_id = getattr(Config, "DISCORD_GUILD_ID", None)
+    if target_id and guild.id == int(target_id):
+        return True
+    return False
+
+def get_target_guild_channel(bot_instance: commands.Bot) -> Optional[discord.TextChannel]:
+    """Finds the primary text channel inside 'My Custom Job Applier'."""
+    for guild in bot_instance.guilds:
+        if is_target_server(guild):
+            for ch in guild.text_channels:
+                if ch.name.lower() == "general" and ch.permissions_for(guild.me).send_messages:
+                    return ch
+            for ch in guild.text_channels:
+                if ch.permissions_for(guild.me).send_messages:
+                    return ch
+    return None
+
+async def check_interaction_auth(interaction: discord.Interaction) -> bool:
+    """Checks slash command server boundary and owner permission."""
+    if not is_target_server(interaction.guild):
+        await interaction.response.send_message(
+            "⛔ **Restricted:** This bot only sends and receives messages inside the **My Custom Job Applier** server.",
+            ephemeral=True
+        )
+        return False
+
+    if not is_authorized_user(interaction.user):
+        await interaction.response.send_message(
+            "⛔ **Unauthorized:** This bot is exclusively configured for Ahmad Faraz.",
+            ephemeral=True
+        )
+        return False
+    return True
 
 # ---------------------------------------------------------------------------
 # Interactive Discord UI View (Buttons for Application Dispatch)
@@ -84,6 +141,12 @@ class JobApplicationView(discord.ui.View):
         self.message: Optional[discord.Message] = None
 
     async def interaction_check(self, interaction: discord.Interaction) -> bool:
+        if not is_target_server(interaction.guild):
+            await interaction.response.send_message(
+                "⛔ This button can only be clicked inside the **My Custom Job Applier** server.",
+                ephemeral=True
+            )
+            return False
         if interaction.user.id != self.author_id:
             await interaction.response.send_message(
                 "⛔ You are not authorized to interact with this application preview.",
@@ -241,26 +304,6 @@ class JobApplicationView(discord.ui.View):
                 pass
 
 # ---------------------------------------------------------------------------
-# Helper: Security & Permissions Verification
-# ---------------------------------------------------------------------------
-
-def is_authorized_user(user: discord.User | discord.Member) -> bool:
-    """Verifies that the user is the owner (Ahmad Faraz) if DISCORD_OWNER_ID is set."""
-    if not Config.DISCORD_OWNER_ID:
-        return True
-    return str(user.id) == str(Config.DISCORD_OWNER_ID).strip()
-
-async def check_interaction_auth(interaction: discord.Interaction) -> bool:
-    """Checks slash command permission."""
-    if not is_authorized_user(interaction.user):
-        await interaction.response.send_message(
-            "⛔ **Unauthorized:** This bot is exclusively configured for Ahmad Faraz.",
-            ephemeral=True
-        )
-        return False
-    return True
-
-# ---------------------------------------------------------------------------
 # Shared Embed Builders
 # ---------------------------------------------------------------------------
 
@@ -359,7 +402,7 @@ def build_help_embed(user_id: int) -> discord.Embed:
             "• **Interactive Preview:** The bot formats an embed with all parsed information.\n"
             "• **1-Click Dispatch:** Click **`[🚀 Send Application Email]`** to send your cold email with `Ahmad_Faraz_CV.pdf` attached.\n\n"
             "### 🛠️ Slash (/) & Prefix (!) Commands:\n"
-            "• `/scan` (or `!scan`) — Scan for fresh job openings and send 1-click approval cards to your DM.\n"
+            "• `/scan` (or `!scan`) — Scan for fresh job openings and send 1-click approval cards to this channel.\n"
             "• `/apply` (or paste post) — Apply to a job post or screenshot.\n"
             "• `/stats` (or `!stats`) — View total applications, interview invites, and unique companies from Excel.\n"
             "• `/check` (or `!check`) — Scan your Gmail inbox for recruiter replies and interview invitations.\n"
@@ -645,39 +688,40 @@ async def on_ready():
     logger.info(f"Antigravity Discord Bot logged in as: {bot.user} (ID: {bot.user.id})")
     print("\n" + "=" * 65)
     print(f"  🤖 ANTIGRAVITY DISCORD OUTREACH BOT IS ONLINE!")
-    print(f"  • Bot Account: {bot.user}")
-    print(f"  • Connected:   {len(bot.guilds)} server(s)")
+    print(f"  • Bot Account:  {bot.user}")
+    print(f"  • Connected:    {len(bot.guilds)} server(s)")
+    print(f"  • Bound Server: My Custom Job Applier (DMs Strictly Disabled)")
     if Config.DISCORD_OWNER_ID:
-        print(f"  • Owner Lock:  Authorized User ID: {Config.DISCORD_OWNER_ID}")
-    else:
-        print("  • Owner Lock:  Open to direct DMs (Set DISCORD_OWNER_ID to lock)")
+        print(f"  • Owner Lock:   Authorized User ID: {Config.DISCORD_OWNER_ID}")
     print("=" * 65 + "\n")
-    activity = discord.Activity(type=discord.ActivityType.watching, name="LinkedIn jobs & screenshots")
+    activity = discord.Activity(type=discord.ActivityType.watching, name="My Custom Job Applier 💼")
     await bot.change_presence(activity=activity)
 
-    # Automatically dispatch newly discovered job leads to owner on startup
-    if Config.DISCORD_OWNER_ID and not getattr(bot, "_has_dispatched_initial_leads", False):
+    # Automatically dispatch newly discovered job leads to 'My Custom Job Applier' server channel on startup
+    if not getattr(bot, "_has_dispatched_initial_leads", False):
         bot._has_dispatched_initial_leads = True
         try:
-            owner_id = int(Config.DISCORD_OWNER_ID)
-            owner_user = await bot.fetch_user(owner_id)
-            if owner_user:
-                logger.info(f"Scanning and dispatching live job leads to owner {owner_user} (ID: {owner_id})...")
+            channel = get_target_guild_channel(bot)
+            if channel:
+                logger.info(f"Scanning and dispatching live job leads to #{channel.name} in '{channel.guild.name}'...")
                 intro_embed = discord.Embed(
                     title="🔍 Fresh Job Openings Ready for Your Approval",
                     description=(
                         "I scanned active tech job listings in Lahore / Pakistan matching your profile.\n"
                         "Below are the verified unapplied opportunities. Review the details and click "
-                        "**`[🚀 Send Application Email]`** to dispatch with your CV attached!"
+                        "**`[🚀 Send Application Email]`** on any card to dispatch with your CV attached!"
                     ),
                     color=0x22C55E,
                     timestamp=datetime.now(timezone.utc)
                 )
-                await owner_user.send(embed=intro_embed)
-                count = await scan_and_send_leads(owner_user, author_id=owner_id)
-                logger.info(f"Successfully delivered {count} lead cards to owner's DM.")
+                await channel.send(embed=intro_embed)
+                owner_id = int(Config.DISCORD_OWNER_ID) if Config.DISCORD_OWNER_ID else bot.user.id
+                count = await scan_and_send_leads(channel, author_id=owner_id)
+                logger.info(f"Successfully delivered {count} lead cards to #{channel.name} in '{channel.guild.name}'.")
+            else:
+                logger.warning("Target server 'My Custom Job Applier' channel not found for initial lead dispatch.")
         except Exception as e:
-            logger.error(f"Failed to dispatch initial job leads to owner: {e}", exc_info=True)
+            logger.error(f"Failed to dispatch initial job leads to server: {e}", exc_info=True)
 
 @bot.event
 async def on_message(message: discord.Message):
@@ -685,16 +729,19 @@ async def on_message(message: discord.Message):
     if message.author.bot:
         return
 
+    # Strictly enforce: ONLY receive and send messages in 'My Custom Job Applier' server (NEVER in DMs)
+    if not is_target_server(message.guild):
+        logger.debug(f"Ignoring non-server or DM message from {message.author} per server-only policy.")
+        return
+
     logger.info(
-        f"Incoming message from {message.author} (ID: {message.author.id}) in {type(message.channel).__name__} "
-        f"(guild={message.guild}): content='{message.content[:60]}', attachments={len(message.attachments)}"
+        f"Incoming server message from {message.author} (ID: {message.author.id}) in #{message.channel.name} "
+        f"({message.guild.name}): content='{message.content[:60]}', attachments={len(message.attachments)}"
     )
 
-    # Check authorization
+    # Check authorization (only Ahmad Faraz)
     if not is_authorized_user(message.author):
-        logger.warning(f"Blocked unauthorized message from {message.author} (ID: {message.author.id})")
-        if message.guild is None or isinstance(message.channel, discord.DMChannel):
-            await message.channel.send("⛔ **Unauthorized:** This bot is exclusively configured for Ahmad Faraz.")
+        logger.warning(f"Blocked unauthorized message from {message.author} (ID: {message.author.id}) in {message.guild.name}")
         return
 
     # Process standard prefix commands first (e.g. !stats, !check, !history, !help, !scan)
@@ -703,6 +750,8 @@ async def on_message(message: discord.Message):
         return
 
     raw_text = message.content.strip()
+    if bot.user in message.mentions:
+        raw_text = message.content.replace(f"<@{bot.user.id}>", "").strip()
     clean_lower = raw_text.lower().strip()
 
     # Detect screenshot or image attachments
@@ -715,7 +764,6 @@ async def on_message(message: discord.Message):
     )
 
     # If NO image is attached, inspect natural language conversational intents
-    # before mistaking regular conversation for a raw job posting:
     if not has_image and raw_text and "@" not in raw_text:
         # Intent 1: Search / Find / Scan for Jobs
         SEARCH_TRIGGERS = [
@@ -795,16 +843,9 @@ async def on_message(message: discord.Message):
             await message.channel.send(embed=embed)
             return
 
-    # If message is received in DMs, treat it as a raw job post, screenshot, or URL
-    if message.guild is None or isinstance(message.channel, discord.DMChannel):
-        await handle_incoming_job_post(message)
-        return
-
-    # If in a guild channel, allow bot if explicitly mentioned
-    if bot.user in message.mentions:
-        clean_text = message.content.replace(f"<@{bot.user.id}>", "").strip()
-        message.content = clean_text
-        await handle_incoming_job_post(message)
+    # In 'My Custom Job Applier', treat messages as job posts, URLs, or OCR images
+    message.content = raw_text
+    await handle_incoming_job_post(message)
 
 # ---------------------------------------------------------------------------
 # Raw Job Post Ingestion & Model Analysis
@@ -1067,22 +1108,22 @@ async def slash_apply(
     sent_msg = await interaction.followup.send(embed=embed, view=view)
     view.message = sent_msg
 
-@bot.tree.command(name="scan", description="Scan for fresh live job openings and send approval cards to your DM")
+@bot.tree.command(name="scan", description="Scan for fresh live job openings and send approval cards to this channel")
 async def slash_scan(interaction: discord.Interaction):
     if not await check_interaction_auth(interaction):
         return
-    await interaction.response.defer(ephemeral=True)
+    await interaction.response.defer()
     intro_embed = discord.Embed(
         title="🔍 Scanning Live Job Opportunities...",
         description="Searching verified openings matching your profile (Python, Software Engineer, Intern)...",
         color=0x3B82F6
     )
-    await interaction.followup.send(embed=intro_embed, ephemeral=True)
-    count = await scan_and_send_leads(interaction.user, author_id=interaction.user.id)
+    await interaction.followup.send(embed=intro_embed)
+    count = await scan_and_send_leads(interaction.channel, author_id=interaction.user.id)
     if count == 0:
-        await interaction.followup.send("✅ You have already applied to all currently scanned opportunities!", ephemeral=True)
+        await interaction.channel.send("✅ You have already applied to all currently scanned opportunities!")
     else:
-        await interaction.followup.send(f"📬 Sent **{count}** new job approval card(s) to your DM!", ephemeral=True)
+        await interaction.channel.send(f"📬 Delivered **{count}** new job approval card(s) to this channel!")
 
 # ---------------------------------------------------------------------------
 # Traditional Prefix (!) Commands (for backwards compatibility)
@@ -1091,6 +1132,8 @@ async def slash_scan(interaction: discord.Interaction):
 @bot.command(name="stats")
 async def stats_command(ctx: commands.Context):
     """Displays real-time application tracker statistics."""
+    if not is_target_server(ctx.guild):
+        return
     async with ctx.typing():
         loop = asyncio.get_running_loop()
         stats = await loop.run_in_executor(None, get_excel_stats)
@@ -1100,6 +1143,8 @@ async def stats_command(ctx: commands.Context):
 @bot.command(name="check")
 async def check_command(ctx: commands.Context):
     """Scans Gmail inbox via IMAP for incoming recruiter replies."""
+    if not is_target_server(ctx.guild):
+        return
     status_msg = await ctx.send("🔍 **Scanning Gmail IMAP inbox for responses from applied companies...**")
     async with ctx.typing():
         loop = asyncio.get_running_loop()
@@ -1113,6 +1158,8 @@ async def check_command(ctx: commands.Context):
 @bot.command(name="history")
 async def history_command(ctx: commands.Context):
     """Lists the last 5 applications recorded in applied_jobs_tracker.xlsx."""
+    if not is_target_server(ctx.guild):
+        return
     async with ctx.typing():
         loop = asyncio.get_running_loop()
         records = await loop.run_in_executor(None, lambda: get_recent_applications(limit=5))
@@ -1122,18 +1169,22 @@ async def history_command(ctx: commands.Context):
 @bot.command(name="help")
 async def help_command(ctx: commands.Context):
     """Provides a clear guide on interacting with the Antigravity Job Assistant bot."""
+    if not is_target_server(ctx.guild):
+        return
     embed = build_help_embed(ctx.author.id)
     await ctx.send(embed=embed)
 
 @bot.command(name="scan")
 async def scan_command(ctx: commands.Context):
-    """Scans for fresh job openings and delivers them to DMs for 1-click approval."""
+    """Scans for fresh job openings and delivers them to this channel for 1-click approval."""
+    if not is_target_server(ctx.guild):
+        return
     async with ctx.typing():
-        count = await scan_and_send_leads(ctx.author, author_id=ctx.author.id)
+        count = await scan_and_send_leads(ctx.channel, author_id=ctx.author.id)
         if count == 0:
             await ctx.send("✅ You have already applied to all currently scanned opportunities!")
         else:
-            await ctx.send(f"📬 Sent **{count}** new job approval card(s) directly to your DM!")
+            await ctx.send(f"📬 Delivered **{count}** new job approval card(s) to this channel!")
 
 # ---------------------------------------------------------------------------
 # Runner Entrypoint
